@@ -20,6 +20,10 @@ pub struct FileState {
     pub thumb_pos_ms: Option<u64>,
     /// Japanese cue ids already sent to Anki (gold marks on the seek bar).
     pub mined_cue_ids: Vec<u32>,
+    /// Subtitle files the user added for this video (dragged in), read in place.
+    pub extra_subs: Vec<String>,
+    /// Auto-sync result per subtitle track id: one shift (ms) per cue, in cue order.
+    pub retimed: BTreeMap<u32, Vec<i64>>,
 }
 
 /// The whole library store (see `stores::Store::Library`).

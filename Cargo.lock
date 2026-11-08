@@ -18,6 +18,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "alass-core"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4ad56e53efbd3731dc4fb0db24953d399f9789caa706b4c5a1a715010170124"
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2121,6 +2127,7 @@ dependencies = [
 name = "kotoba-player"
 version = "0.3.0"
 dependencies = [
+ "alass-core",
  "base64 0.22.1",
  "jpdict",
  "jptext",

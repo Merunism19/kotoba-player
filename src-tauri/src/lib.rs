@@ -10,6 +10,7 @@ mod media;
 mod mining;
 mod settings;
 mod stores;
+mod sync;
 mod translate;
 mod translate_deepl;
 mod translate_ollama;

@@ -32,6 +32,7 @@ jptext = { version = "0.1.0", path = "../crates/jptext" }
 ureq = { version = "3", default-features = false, features = ["json", "native-tls"] }
 jpdict = { version = "0.1.0", path = "../crates/jpdict" }
 keyring = { version = "3", features = ["windows-native"] }
+alass-core = "2.0.0"
 
 [target."cfg(windows)".dependencies]
 windows = { version = "0.62", features = ["Media_Core", "Media_SpeechSynthesis", "Storage_Streams", "Foundation", "Foundation_Collections"] }
