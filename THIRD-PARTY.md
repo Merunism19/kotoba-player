@@ -46,8 +46,10 @@ Group's licence: <https://www.edrdg.org/edrdg/licence.html>.
 
 ### FFmpeg
 
-- FFmpeg n8.1.3 (`ffmpeg.exe`, `ffprobe.exe`), LGPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds).
-- Licence: LGPL-2.1-or-later. The executables are run as separate processes. Source code: <https://ffmpeg.org/>.
+- FFmpeg n8.1.3 (`ffmpeg.exe`, `ffprobe.exe` and their shared libraries `avcodec`, `avformat`, `avfilter`, `avdevice`,
+  `avutil`, `swresample`, `swscale`), LGPL shared build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds).
+- Licence: LGPL-2.1-or-later. The executables are run as separate processes; the DLLs are unmodified and replaceable.
+  Source code: <https://ffmpeg.org/>.
 
 ## Rust libraries added for the dictionary
 
@@ -56,3 +58,22 @@ Group's licence: <https://www.edrdg.org/edrdg/licence.html>.
 | `rusqlite` (feature `bundled`) | MIT | SQLite bindings |
 | SQLite (compiled in by `libsqlite3-sys`) | Public domain | <https://sqlite.org/copyright.html> |
 | `serde`, `serde_json` | MIT OR Apache-2.0 | JSON |
+
+## Other notable libraries
+
+| Component | Licence | Note |
+| --- | --- | --- |
+| `alass-core` | GPL-3.0 | automatic subtitle synchronization (the app is GPL-3.0-or-later) |
+| `lindera` + UniDic | MIT; UniDic BSD-3-Clause | tokenizer and its dictionary (embedded) |
+| `encoding_rs` | MIT OR Apache-2.0 (+ BSD-3-Clause data) | subtitle decoding |
+| `ureq` (native-tls) | MIT OR Apache-2.0 | loopback HTTP (AnkiConnect, VOICEVOX, Ollama) and DeepL |
+| `keyring` | MIT OR Apache-2.0 | DeepL key in Windows Credential Manager |
+| `windows` | MIT OR Apache-2.0 | Windows speech (WinRT) |
+| `tauri`, `tauri-plugin-dialog` | MIT OR Apache-2.0 | app shell |
+| `tauri-plugin-libmpv` | MPL-2.0 | mpv embedding |
+| React, zustand | MIT | user interface |
+| Inter, Noto Sans JP, Zen Maru Gothic (via Fontsource) | SIL OFL 1.1 | bundled fonts |
+
+Optional services the app talks to only on this computer (127.0.0.1) when the user runs them:
+AnkiConnect (Anki add-on), VOICEVOX (its voices must be credited, e.g. "VOICEVOX:四国めたん"), Ollama.
+DeepL is used only with the user's own API key, for lines without English subtitles.
