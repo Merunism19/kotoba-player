@@ -329,8 +329,15 @@ export async function addSubtitleFile(file: string): Promise<void> {
   if (!before) return;
   try {
     const media = await backend.addSubtitleFile(before.path, file);
+    if (get().media?.path !== before.path) return; // the user moved on meanwhile
     set({ media });
     await reloadCues(media);
+    // mpv draws the signs of the JP track: when that changed, reload at the current position.
+    if (media.signsAssPath !== before.signsAssPath) {
+      const { time, pause } = get();
+      await player.loadFile(media.path, { startSec: time, signsAssPath: media.signsAssPath });
+      if (pause) await player.setPause(true);
+    }
     const role = media.jpSubId !== before.jpSubId ? 'Japanese' : media.enSubId !== before.enSubId ? 'English' : '';
     toast(`Added ${role ? role + ' ' : ''}subtitles: ${basename(file)}`, 'ok');
   } catch (e) {

@@ -392,3 +392,11 @@ Changelog (newest last; each line: what changed — evidence):
   edits turned backslash escapes inside JS/Rust strings into real line breaks three times in one session (a
   syntax error, a test hanging on a header loop, and this very changelog line) — code or text with escapes
   is now edited only with the edit tool.
+- 2026-11-08: Review loop on a young app paid off at once: a read-only security reviewer (~104k tokens) found that
+  a media plugin's default permission let any WebView script run arbitrary player commands (incl. process
+  launch) — fixed by an allowlisting Rust layer, a capability guard proven by planting, a strict CSP and a
+  sandboxed preview iframe; a data/crash reviewer (~149k) found colliding temp files, a cache key that would
+  overwrite earlier cards' media, double-send of drafts, main-thread disk I/O and missing process timeouts.
+  The orchestrator then confirmed the fix in a RELEASE build (where the real CSP applies): the guarded command
+  refused `run` while playback still worked. Also: scripted edits mangled escapes a 4th time (a throwaway
+  probe test) — the compiler caught it each time, so the rule stays a rule, not a guard.

@@ -26,6 +26,14 @@ One ordered list of checks that need the owner's machine. Every PR adds its chec
 - [ ] The card plays the line's audio; the screenshot is the right frame; hover shows readings; on the phone a tap does.
 - [ ] Adding the same word again shows "Already in Anki"; Shift+click adds without the preview.
 
+## v1.0.0 (Phases 4–5: polish + installer)
+- [ ] Install `Kotoba Player_1.0.0_x64-setup.exe` (from the GitHub release or `target/release/bundle/nsis/`); it opens a real episode from Explorer ("Open with").
+- [ ] Settings (gear / Ctrl+,): change accent, subtitle size, English mode — they stick after a restart.
+- [ ] Optional DeepL: paste your free key in Settings → it shows "used / limit"; mine a line from a file with no English subs → the preview says "machine translation (DeepL)".
+- [ ] Drop a Japanese `.srt` from another release onto the player → it becomes the JP track; Track picker → "Sync to English" fixes its timing (Undo works).
+- [ ] T opens the transcript; clicking a line jumps there.
+- [ ] Optional: import a Yomitan frequency dictionary (Settings → Dictionaries) → the popup shows "★ freq #…".
+
 ## Per release (fill in as features land)
 - [ ] Open a Hi10P H.264 MKV, an HEVC 10-bit MKV and an MP4; each plays, seeks, fullscreens.
 - [ ] Embedded JP subs appear in time; Z/X offset moves them; English line shows under it.
