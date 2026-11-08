@@ -630,8 +630,8 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         })
         .collect();
 
-    // Translation: the aligned English subtitle lines (DeepL/Ollama fallbacks come in Phase 4).
-    let translation = req
+    // Translation: the aligned English subtitle lines (owner's rule: always first); else DeepL → Ollama.
+    let from_subs = req
         .en_sub_id
         .and_then(|en_id| core.track(&req.path, en_id).ok())
         .map(|en| {
@@ -649,6 +649,13 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
                 .join(" ")
         })
         .unwrap_or_default();
+    let (translation, translation_source) = if from_subs.trim().is_empty() {
+        let settings = lock(&core.settings).clone();
+        let (t, s) = crate::translate::fallback(&settings, &cue.text);
+        (t, s.as_str())
+    } else {
+        (from_subs, "subtitles")
+    };
 
     let title = lock(&core.library)
         .files
@@ -770,11 +777,7 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         screenshot_url: shot_ok.then(|| data_url_of(&shot, "image/webp")).flatten(),
         sentence_audio_url: clip_ok.then(|| data_url_of(&clip, "audio/mpeg")).flatten(),
         word_audio_url: word_audio.map(|w| w.url),
-        translation_source: if translation.is_empty() {
-            "none"
-        } else {
-            "subtitles"
-        },
+        translation_source,
         duplicates,
         deck,
         decks: status.decks,
@@ -881,6 +884,71 @@ pub async fn show_in_anki(
     tauri::async_runtime::spawn_blocking(move || {
         let ids: Vec<String> = note_ids.iter().map(|i| i.to_string()).collect();
         core.anki().browse(&format!("nid:{}", ids.join(",")))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+// ---- Settings ----------------------------------------------------------------------------------
+
+/// Mirrors `SettingsView` in src/lib/backend.ts: the stored settings plus facts about secrets/services.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsView {
+    settings: crate::settings::Settings,
+    /// A DeepL key is stored in the OS keyring (the key itself is never sent to the UI).
+    has_deepl_key: bool,
+    /// Installed Ollama models (empty when Ollama isn't running).
+    ollama_models: Vec<String>,
+    /// Name of the Japanese Windows voice, if one is installed.
+    japanese_voice: Option<String>,
+    /// VOICEVOX is running on this PC.
+    voicevox: bool,
+    /// Dictionary attribution for the About section.
+    attribution: Option<String>,
+}
+
+/// Current settings and service status.
+#[tauri::command]
+pub async fn get_settings(core: tauri::State<'_, Arc<Core>>) -> Result<SettingsView, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || SettingsView {
+        settings: lock(&core.settings).clone(),
+        has_deepl_key: crate::translate_deepl::stored_key().is_some(),
+        ollama_models: crate::translate_ollama::models(crate::translate_ollama::DEFAULT_BASE),
+        japanese_voice: crate::audio_windows::japanese_voice(),
+        voicevox: crate::audio_voicevox::available(),
+        attribution: core.dict().ok().and_then(|d| d.meta("attribution")),
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))
+}
+
+/// Save settings (values are clamped/repaired); returns what was stored.
+#[tauri::command]
+pub fn save_settings(
+    core: tauri::State<'_, Arc<Core>>,
+    settings: crate::settings::Settings,
+) -> Result<crate::settings::Settings, String> {
+    let clean = settings.sanitized();
+    stores::save(&core.data_dir, Store::Settings, &clean)
+        .map_err(|e| format!("Couldn't save settings: {e}"))?;
+    *lock(&core.settings) = clean.clone();
+    Ok(clean)
+}
+
+/// Store (checked against DeepL first) or remove the DeepL key. Returns "used/limit" characters.
+#[tauri::command]
+pub async fn set_deepl_key(key: Option<String>) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        match key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
+            Some(k) => {
+                let (used, limit) = crate::translate_deepl::usage(&k)?;
+                crate::translate_deepl::set_key(Some(&k))?;
+                Ok(Some(format!("{used} / {limit} characters used this month")))
+            }
+            None => crate::translate_deepl::set_key(None).map(|_| None),
+        }
     })
     .await
     .map_err(|e| format!("internal error: {e}"))?

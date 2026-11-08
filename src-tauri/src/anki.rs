@@ -274,6 +274,64 @@ pub(crate) mod tests {
         (base, seen)
     }
 
+    /// Generic fake HTTP JSON server on loopback: answers by path prefix, records
+    /// `{path, headers (lowercase names), body}` of every request.
+    pub(crate) fn fake_http(
+        routes: Vec<(&'static str, Value)>,
+    ) -> (String, Arc<Mutex<Vec<Value>>>) {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        // network-guard: ok fake server on 127.0.0.1 with a random port
+        let base = format!("http://{}", l.local_addr().unwrap());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let seen2 = seen.clone();
+        std::thread::spawn(move || {
+            for stream in l.incoming() {
+                let Ok(mut s) = stream else { break };
+                let mut r = BufReader::new(s.try_clone().unwrap());
+                let mut line = String::new();
+                if r.read_line(&mut line).is_err() {
+                    continue;
+                }
+                let path = line.split_whitespace().nth(1).unwrap_or("").to_string();
+                let mut headers = serde_json::Map::new();
+                let mut len = 0usize;
+                loop {
+                    let mut h = String::new();
+                    r.read_line(&mut h).unwrap();
+                    if h.trim().is_empty() {
+                        break;
+                    }
+                    if let Some((k, v)) = h.split_once(':') {
+                        let k = k.trim().to_ascii_lowercase();
+                        if k == "content-length" {
+                            len = v.trim().parse().unwrap_or(0);
+                        }
+                        headers.insert(k, Value::String(v.trim().to_string()));
+                    }
+                }
+                let mut body = vec![0; len];
+                r.read_exact(&mut body).unwrap();
+                let body: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+                let answer = routes
+                    .iter()
+                    .find(|(p, _)| path.starts_with(p))
+                    .map(|(_, v)| v.to_string())
+                    .unwrap_or_else(|| "{}".into());
+                seen2
+                    .lock()
+                    .unwrap()
+                    .push(json!({ "path": path, "headers": headers, "body": body }));
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    answer.len()
+                );
+                s.write_all(head.as_bytes()).unwrap();
+                s.write_all(answer.as_bytes()).unwrap();
+            }
+        });
+        (base, seen)
+    }
+
     fn nt(version: u32) -> NoteType {
         NoteType {
             fields: vec!["Word".into(), "Sentence".into()],

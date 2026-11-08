@@ -10,6 +10,9 @@ mod media;
 mod mining;
 mod settings;
 mod stores;
+mod translate;
+mod translate_deepl;
+mod translate_ollama;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -56,6 +59,9 @@ pub fn run() {
             commands::draft_card,
             commands::add_card,
             commands::show_in_anki,
+            commands::get_settings,
+            commands::save_settings,
+            commands::set_deepl_key,
             commands::save_file_state,
             commands::save_position,
             commands::recent_files,
