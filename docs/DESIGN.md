@@ -220,7 +220,7 @@ Each phase is a set of briefs (section 4 of AGENT-WORKFLOW). **H** = helper brie
 below, decided on the way:
 - Word audio has no "local audio pack" source yet (VOICEVOX → Windows voice only).
 - Auto-sync uses the release's English subtitles as the timing reference (no audio-based sync);
-  it shifts the dialogue, not an external .ass file's signs.
+  the track's signs are rewritten with the same shifts and mpv reloads them.
 - ffmpeg ships as the LGPL **shared** build (~100 MB smaller); UniDic stays embedded (~194 MB in
   the exe; the installer compresses to ~137 MB).
 - Security hardening after review: mpv is driven only through an allowlisting Rust layer

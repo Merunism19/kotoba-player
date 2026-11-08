@@ -363,6 +363,8 @@ export async function syncToEnglish(): Promise<void> {
   try {
     const summary = await backend.syncSubtitles(media.path, jp, media.enSubId);
     await reloadCues(media);
+    // The signs file was rewritten with the new timing; mpv re-reads it (no-op without signs).
+    if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
     toast(describeSync(summary), 'ok', summary.changed ? { label: 'Undo', run: () => void undoSync(media.path, jp) } : undefined);
   } catch (e) {
     toast(`Could not sync: ${errMsg(e)}`);
@@ -377,6 +379,7 @@ async function undoSync(path: string, jp: number): Promise<void> {
   try {
     await backend.resetSync(path, jp);
     await reloadCues(media);
+    if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
     toast('Sync undone', 'info');
   } catch (e) {
     toast(errMsg(e));

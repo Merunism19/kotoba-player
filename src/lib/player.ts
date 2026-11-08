@@ -41,6 +41,8 @@ export interface PlayerApi {
   setVolume(v: number): Promise<void>;
   setSpeed(s: number): Promise<void>;
   setAudio(id: number | null): Promise<void>;
+  /** Re-read the subtitle file mpv shows (the signs file, after a sync rewrote it). */
+  reloadSubtitles(): Promise<void>;
 }
 
 // Format tuples as the plugin wants them; 'none' marks values that are null before a file is loaded.
@@ -153,6 +155,7 @@ function createMpvPlayer(): PlayerApi {
     setVolume: (v) => setProperty('volume', v),
     setSpeed: (s) => setProperty('speed', s),
     setAudio: (id) => setProperty('aid', id == null ? 'no' : String(id)),
+    reloadSubtitles: () => command('sub-reload'),
   };
 }
 

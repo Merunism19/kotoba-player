@@ -73,8 +73,7 @@ DeepL with a real key, AnkiDroid/AnkiMobile rendering — see DEVICE-TEST-PLAN.m
 1. Owner: merge PRs #2 → #3 → #4 → #5 (in order), then `node scripts/ship.mjs --release --local-gate`
    on a follow-up branch (or upload the installer by hand) to publish the GitHub release.
 2. Owner: run DEVICE-TEST-PLAN.md (AnkiConnect, Japanese voice, a real episode).
-3. Later ideas: audio-based sync (no reference track), signs retiming for synced .ass files, word-audio
-   packs, a smaller tokenizer dictionary (UniDic is 194 MB in the exe).
+3. Later ideas: audio-based sync (no reference track), word-audio packs, a smaller tokenizer dictionary (UniDic is 194 MB in the exe).
 
 ## Status log (keep ≤ 8 lines; older lines → docs/HISTORY.md)
 - 2026-11-08: Read AGENT-WORKFLOW.md; wrote DESIGN.md, mockup, project docs (HANDOFF/WORKFLOW/BRIEF/test plan).

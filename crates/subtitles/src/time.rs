@@ -8,6 +8,14 @@ fn digits(s: &str) -> Option<i64> {
     s.parse().ok()
 }
 
+/// Milliseconds as an ASS timestamp `H:MM:SS.cc` (negative clamps to 0; centiseconds round down).
+pub(crate) fn format_ass(ms: i64) -> String {
+    let ms = ms.max(0);
+    let cs = (ms / 10) % 100;
+    let s = ms / 1000;
+    format!("{}:{:02}:{:02}.{:02}", s / 3600, s / 60 % 60, s % 60, cs)
+}
+
 /// Parse `H:MM:SS.cc`, `HH:MM:SS,mmm` or `MM:SS.mmm` into milliseconds.
 /// The fraction is a decimal fraction of a second (2 digits = centiseconds).
 pub(crate) fn parse_clock(s: &str) -> Option<i64> {

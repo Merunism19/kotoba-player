@@ -218,6 +218,8 @@ fn check_command(name: &str, args: &[Value], cache_dir: &Path) -> Result<Vec<Val
             Ok(args.to_vec())
         }
         "stop" if args.is_empty() => Ok(Vec::new()),
+        // Re-read the selected subtitle file (the signs file after a sync); no arguments allowed.
+        "sub-reload" if args.is_empty() => Ok(Vec::new()),
         "frame-step" | "frame-back-step" if args.is_empty() => Ok(Vec::new()),
         other => Err(format!("mpv command not allowed: {other}")),
     }
@@ -301,6 +303,8 @@ mod tests {
         assert!(check_command("seek", &[json!(5), json!("relative")], &dir).is_ok());
         assert!(check_command("seek", &[json!(12.3), json!("absolute+exact")], &dir).is_ok());
         assert!(check_command("stop", &[], &dir).is_ok());
+        assert!(check_command("sub-reload", &[], &dir).is_ok());
+        assert!(check_command("sub-reload", &[json!("3")], &dir).is_err());
         // A signs file outside the cache, or another option, is refused.
         let outside = format!("sub-files-append=%{}%{vp}", vp.len());
         assert!(

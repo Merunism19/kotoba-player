@@ -253,6 +253,23 @@ fn choose_subs(
     (jp, en.filter(|e| Some(*e) != jp))
 }
 
+/// Write the signs-only ASS for subtitle track `sub_id` (using its current, possibly synced, cue
+/// times) into the cache; returns its path, or None when the track has no signs.
+fn write_signs(core: &Core, path: &str, sub_id: u32) -> Option<String> {
+    let track = core.track(path, sub_id).ok()?;
+    let ass = track.signs_only_ass_timed(&track.cues)?;
+    let out = core.cache_dir.join("subs").join(format!(
+        "{}-s{sub_id}.signs.ass",
+        media::file_key(Path::new(path))
+    ));
+    // Temp + rename so mpv never reads a half-written file.
+    let tmp = out.with_extension(format!("{}.part", std::process::id()));
+    std::fs::write(&tmp, ass)
+        .and_then(|_| std::fs::rename(&tmp, &out))
+        .ok()
+        .map(|_| out.to_string_lossy().into_owned())
+}
+
 fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     let tools = core.tools()?;
     let video = Path::new(path);
@@ -317,18 +334,7 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     };
     let (jp_sub_id, en_sub_id) = choose_subs(core, path, &probe.tracks, remembered);
 
-    let signs_ass_path = jp_sub_id
-        .and_then(|id| core.track(path, id).ok().map(|t| (id, t)))
-        .and_then(|(id, t)| t.signs_only_ass().map(|ass| (id, ass)))
-        .and_then(|(id, ass)| {
-            let out = sub_cache.join(format!("{}-s{id}.signs.ass", media::file_key(video)));
-            // Temp + rename so mpv never reads a half-written file.
-            let tmp = out.with_extension(format!("{}.part", std::process::id()));
-            std::fs::write(&tmp, ass)
-                .and_then(|_| std::fs::rename(&tmp, &out))
-                .ok()
-                .map(|_| out.to_string_lossy().into_owned())
-        });
+    let signs_ass_path = jp_sub_id.and_then(|id| write_signs(core, path, id));
 
     {
         let mut lib = lock(&core.library);
@@ -1070,6 +1076,8 @@ fn sync(
         core.save_library(&lib);
     }
     lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    // Signs of this track move with it (the UI then asks mpv to reload the file it shows).
+    let _ = write_signs(core, path, sub_id);
     Ok(summary)
 }
 
@@ -1100,7 +1108,8 @@ pub fn reset_sync(
         lib.entry(&path).retimed.remove(&sub_id);
         core.save_library(&lib);
     }
-    lock(&core.parsed).remove(&(path, sub_id));
+    lock(&core.parsed).remove(&(path.clone(), sub_id));
+    let _ = write_signs(&core, &path, sub_id);
     Ok(())
 }
 
