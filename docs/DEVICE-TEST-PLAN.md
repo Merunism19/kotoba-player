@@ -6,6 +6,10 @@ One ordered list of checks that need the owner's machine. Every PR adds its chec
 - [ ] Install AnkiConnect in Anki (Tools → Add-ons → Get Add-ons → code `2055492159`), restart Anki.
 - [ ] Install a Japanese speech voice: Windows Settings → Time & language → Speech → Add voices → Japanese.
 
+## v0.1.1 (Phase 0 spike) — optional, already checked by the probe on this PC
+- [ ] `pnpm tauri dev`, open one of your real anime MKVs: plays smoothly, JP line clickable, English line under it (if the file has one).
+- [ ] Try a file with styled signs: signs are not shown yet (expected until Phase 1).
+
 ## Per release (fill in as features land)
 - [ ] Open a Hi10P H.264 MKV, an HEVC 10-bit MKV and an MP4; each plays, seeks, fullscreens.
 - [ ] Embedded JP subs appear in time; Z/X offset moves them; English line shows under it.

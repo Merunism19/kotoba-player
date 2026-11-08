@@ -156,6 +156,10 @@ header.intro p{color:var(--text-2);margin-top:6px;max-width:760px}
   .c-word{font-size:42px}
 }
 .btn,.kbd{white-space:nowrap}
+/* In the app the video is a separate surface under the page: backdrop-filter can't blur it,
+   so glass over video is tinted, not frosted (DESIGN.md section 5). */
+.player .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(14,16,22,.82)}
+.player .popup.glass,.player .popup::after{background:rgba(14,16,22,.9)}
 .popup{max-height:calc(81% - 76px);overflow:auto;scrollbar-width:none}
 /* smaller players (windowed): the popup drops its extras so it never covers the whole frame */
 @container (max-width:980px){

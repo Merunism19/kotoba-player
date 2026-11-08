@@ -4,7 +4,8 @@ Your brief says **what** to build. This file says **how**. Follow both.
 
 ## Hard rules (never break; ask the orchestrator instead)
 1. Nothing about the user's files, subtitles or lookups leaves the machine. The only network
-   targets allowed: AnkiConnect at `127.0.0.1`, and the DeepL module when the brief says so.
+   targets allowed: local services at `127.0.0.1` (AnkiConnect, VOICEVOX, Ollama), and the DeepL
+   module when the brief says so.
 2. Never write next to the user's video files. Use the app cache dir.
 3. Anki: only the app's own note type; never delete/edit existing notes, decks or note types.
 4. New dependencies only under the licence allow-list in `docs/DESIGN.md` §8; name each new one

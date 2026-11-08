@@ -27,17 +27,17 @@ Everything below serves those points. Section 11 lists the extras I added and wh
 | Decision | Choice | Why / what was ruled out |
 |---|---|---|
 | App shell | **Tauri v2** (Rust core + WebView2 UI) on Windows 11 | Small, fast, native file access; the UI is HTML/CSS, so it can look as good as we want. Electron would also work but is heavier and has no advantage here. |
-| Video engine | **libmpv** embedded through `tauri-plugin-libmpv` (mpv draws into the window, a **transparent WebView** draws our UI on top) | Anime releases use codecs a browser `<video>` can't play reliably: H.264 **Hi10P** (8-bit-only hardware), AC3/DTS audio, MKV with font attachments and styled ASS subs. mpv plays all of it, seeks instantly, has hardware decoding, and can take screenshots. The plugin's docs say Windows is the fully tested platform. **Fallback** if the spike (Phase 0) fails: `tauri-plugin-mpv` (mpv.exe child process over JSON IPC, same overlay idea). |
+| Video engine | **libmpv** embedded through `tauri-plugin-libmpv` (mpv draws into the window, a **transparent WebView** draws our UI on top) | Anime releases use codecs a browser `<video>` can't play reliably: H.264 **Hi10P** (8-bit-only hardware), AC3/DTS audio, MKV with font attachments and styled ASS subs. mpv plays all of it, seeks instantly, has hardware decoding, and can take screenshots. The plugin's docs say Windows is the fully tested platform. **Fallback** if the spike (Phase 0) fails: `tauri-plugin-mpv` (mpv.exe child process over JSON IPC, same overlay idea). **Spike passed 2026-11-08** (plugin 0.3.2, wrapper 0.1.1, libmpv 2026-10-30): Hi10P H.264 (software decode), HEVC 10-bit (d3d11va) and H.264 MP4 all play with 0 dropped frames, 24–48 `time-pos` events/s reach the WebView, the overlay is clickable, fullscreen and clean shutdown work. |
 | Subtitle display | **We draw the Japanese dialogue line ourselves** as HTML (each word clickable); mpv still renders signs/songs from ASS if the user wants | The user has to be able to click words, so the line must be DOM text, not pixels. |
 | Subtitle source of truth | Rust parses the whole track (ASS/SSA/SRT/VTT; embedded tracks extracted with **ffmpeg**) into a cue list; the overlay follows mpv's `time-pos` + a per-file **offset** | Owning the cue list gives: offset sync, "previous/next line", transcript sidebar, sentence boundaries for mining, and lining up the English track with the Japanese one. |
 | Sync | Manual offset hotkeys (±100 ms), "this line starts now" sync, and **automatic sync** of an external subtitle file to the audio (`alass-core`, GPL-3) | Japanese subs for anime often come from a different release and are offset; auto-sync fixes it in seconds. |
-| Word lookup | Yomitan-style **scan from the clicked character**: try the longest substring first, **deinflect** it (our own conjugation rule table), look it up, rank by match length and frequency | Clicking anywhere in 食べさせられなかった finds 食べる and shows "causative · passive · negative · past". A plain tokenizer can split wrongly; the scan is what learners expect. |
+| Word lookup | **Owner, 2026-11-08: a click must select the whole word** (several kanji/kana together, e.g. 夕焼け, 綺麗, 知らなかった), never a single character. Yomitan-style **scan from the clicked character**: try the longest substring first, **deinflect** it (our own conjugation rule table), look it up, rank by match length and frequency | Clicking anywhere in 食べさせられなかった finds 食べる and shows "causative · passive · negative · past". A plain tokenizer can split wrongly; the scan is what learners expect. |
 | Tokenizer | **Lindera** (MIT) + IPADIC/UniDic for word underlines, sentence furigana and readings | Needed for hover-furigana of the *whole sentence* on the card, and to show word boundaries on hover in the player. |
 | Dictionary data | **JMdict (English)** — EDRDG licence, CC BY-SA 4.0 — compiled into **SQLite** by a build tool; **Kanjium** pitch accents (CC BY-SA 4.0); later: import any **Yomitan-format** dictionary zip | Free, accurate, offline. Attribution goes on the About screen. |
-| Word audio ("hear it") | Chain, first that works: (1) a local audio pack folder the user supplies (Yomitan local-audio layout), (2) **Windows Japanese TTS** voice through the `tts` crate | Works offline. Needs a Japanese voice on Windows (Settings → Time & language → Speech) — on the owner's device test plan. |
+| Word audio ("hear it") | **Decided 2026-11-08 (owner: "you decide").** Chain, first that works: (1) **VOICEVOX** engine if it is running locally (`127.0.0.1:50021`, auto-detected; free, natural Japanese voices with correct pitch accent; its terms require crediting the voice — shown in the popup tooltip and About), (2) **Windows Japanese voice** (WinRT `SpeechSynthesizer`, offline, the always-available default), (3) a local audio pack folder if the user ever adds one | Everything stays on the machine. Windows voice needs the Japanese speech pack (device test plan); VOICEVOX is an optional free upgrade the owner can install any time. |
 | Sentence audio | ffmpeg cuts the line's audio (cue start − 250 ms … end + 250 ms) to `.mp3` | Goes on the card, so the user hears the real anime voice. |
 | Screenshot | mpv `screenshot-to-file` with `video` mode (no subtitles burned in), resized to 640 px wide, `.webp` | Clean frame for the card front. |
-| Sentence translation | (1) the **English subtitle track**, lined up by time overlap (many anime MKVs carry both), (2) an editable field in the mining preview, (3) *optional* DeepL API with the owner's own key | No paid account needed by default; nothing goes online unless the owner turns it on. |
+| Sentence translation | **Decided by owner 2026-11-08:** (1) the **English subtitle track** (embedded or external), lined up by time overlap — always first; (2) if there is none: **DeepL API Free** (free account, 500k characters/month, owner's key in the OS keyring); (3) if no key / quota used up: a local **Ollama** model if one is running (owner has Ollama installed; free, offline); (4) the editable field in the mining preview always lets the owner fix it | Free in every case. Only the one sentence being mined is sent to DeepL, and only when a key is set. |
 | Anki | **AnkiConnect** on `127.0.0.1:8765` (API v6). The app creates **its own note type** ("Kotoba Mining") with our templates and updates it when the template version changes | One-click cards with media; never touches the user's other note types. |
 | UI stack | React 19 + TypeScript + Vite, CSS variables for design tokens, Framer Motion for the popup springs, Zustand for state | Common, well-known, helpers write it reliably. |
 | Package manager | pnpm (installed) | — |
@@ -87,7 +87,8 @@ it in the Anki browser.
 
 ## 4. Screens
 
-1. **Library / home** — big drop zone ("Drop an episode"), "Continue watching" row with
+1. **Library / home** — **fills the whole window** (owner, 2026-11-08: no small card on black;
+   it is an opaque page covering mpv's idle surface), big drop zone ("Drop an episode"), "Continue watching" row with
    thumbnails and progress bars, recent folders. Opening a folder lists episodes in order.
 2. **Player** — full-bleed video; controls fade out after 2 s of no mouse movement.
    - Top bar: show title, episode, track picker (audio / JP subs / EN subs), sync badge
@@ -133,6 +134,12 @@ Mood: **"midnight cinema"** — the video is the star; UI is dark glass that flo
 | pitch | heiban `#5BA8FF`, atamadaka `#FF6B6B`, nakadaka `#FFA94D`, odaka `#4FD6A8` | pitch graph + reading colour |
 | radius | 20 px panels, 12 px buttons, 999 px pills | |
 | shadow | `0 20px 60px rgba(0,0,0,.45)` | floating panels |
+
+**Glass over video can't blur (spike finding).** mpv draws the video in its own surface under the
+WebView, so CSS `backdrop-filter` only sees the page, never the video: panels over video look
+tinted, not frosted. Over video use **tinted glass**: `rgba(14,16,22,0.82)` (popup 0.9) + hairline
+border + shadow, no blur. Blur stays only where the page itself is underneath (home, settings,
+panels over panels). The mockup was updated to show it this way.
 
 Type: **Inter** for UI, **Noto Sans JP** (subtitles, dictionary) and **Zen Maru Gothic** for the
 big headword. Fonts are bundled (OFL), never loaded from the web.
@@ -188,8 +195,9 @@ Enter add to Anki (popup open) · R play word audio · E toggle English line.
 ## 8. Hard rules (non-negotiable; copied into `docs/agents/BRIEF.md`)
 
 1. **Privacy:** nothing about the user's files, subtitles or lookups leaves the machine, except
-   (a) AnkiConnect on `127.0.0.1` and (b) the optional DeepL call, only when the owner has
-   turned it on and entered their own key. No analytics, no auto-update pings without a setting.
+   (a) local services on `127.0.0.1` (AnkiConnect, VOICEVOX, Ollama) and (b) the DeepL call for
+   the one sentence being mined, only when there is no English track and the owner has entered
+   their own key. No analytics, no auto-update pings without a setting.
 2. **Never write next to the user's videos.** Extracted subtitles, clips and screenshots go to the
    app cache dir; media for Anki goes through `storeMediaFile`.
 3. **Anki safety:** only create/update the app's own note type; never delete or edit existing
@@ -222,7 +230,13 @@ Each phase is a set of briefs (section 4 of AGENT-WORKFLOW). **H** = helper brie
 - H1 `crates/subtitles`: ASS/SSA/SRT/VTT parser (tags stripped, `\N` handled, karaoke tags
   removed), sign/song filter heuristics, EN↔JP alignment by overlap, fuzz tests, fixtures from
   real releases.
-- O: mpv bridge commands/events, ffprobe track listing, subtitle extraction.
+- O: mpv bridge commands/events, ffprobe track listing, subtitle extraction. Signs/songs: mpv's
+  `sub-text` merges every line on screen (the spike showed a sign and a dialogue line joined), so
+  we split them ourselves and hand mpv a **signs-only ASS** (`sub-add`) to render, while dialogue
+  stays in the WebView.
+- H-tok (moved up from Phase 2 at the owner's request): Lindera tokenizer behind a
+  `tokenize(line)` command; the subtitle line renders **one hoverable span per word** (whole-word
+  hover highlight, click hands the word's start to the Phase 2 lookup).
 - H2 Player UI: controls, seek bar with cue ticks, track picker, auto-hide, hotkeys, offset badge,
   library/home with recent files + resume position, drag-and-drop, headless screenshot tests.
 
@@ -270,13 +284,13 @@ Each phase is a set of briefs (section 4 of AGENT-WORKFLOW). **H** = helper brie
 - Shift+click instant mining.
 - Resume where you left off, per-file offset and track memory.
 
-## 12. Open questions for the owner (nothing blocks Phase 0–2)
+## 12. Owner decisions and open items
 
-1. **Sentence translation:** is "English subtitle track + edit by hand" enough, or do you want
-   DeepL (needs your free DeepL API key)?
-2. **AnkiConnect** isn't installed in your Anki (add-on code `2055492159`). Install it before
-   Phase 3 — I won't touch your Anki profile myself.
-3. **GitHub:** private repo for this project? (I'll keep it local until you say.)
-4. **Japanese TTS voice:** install one in Windows Speech settings for the 🔊 button, or tell me
-   if you have a local audio pack (higher quality, real speakers).
-5. The name "Kotoba Player" — keep or change?
+Decided 2026-11-08: private GitHub repo (`Merunism19/kotoba-player`); name stays **Kotoba
+Player**; translation = English track → DeepL Free → local Ollama → manual; word audio chosen by
+the orchestrator (section 2: VOICEVOX if running → Windows voice).
+
+Still open (owner actions, needed only from Phase 2/3):
+1. Install **AnkiConnect** (add-on code `2055492159`) before Phase 3.
+2. Install the Windows **Japanese speech pack**; optionally install VOICEVOX for nicer audio.
+3. Create a free **DeepL API Free** key when you want machine translation for files without English subs.

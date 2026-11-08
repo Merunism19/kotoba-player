@@ -51,6 +51,9 @@ section 12 and leaves the file better than it found it. Version and history are 
    it; keep stacks short — three is the most worth carrying).
 4. **Brief** one helper (section 4). One writer per checkout at a time; to run helpers in parallel
    (or alongside your own edits), give each its own git worktree and bring its files over after review.
+   A new worktree may be cut from the default branch, not your working branch: commit what the helper
+   needs on a branch it will start from, name the expected base commit in the brief, and have it check
+   `git log -1` before its first edit.
 5. **While it works**, do only things that don't touch its files or the build lock: plan the next
    brief, write release notes, update docs.
 6. **Review** (section 5).
@@ -169,6 +172,9 @@ Text for commits, PRs and notes always goes in files, never in quoted command-li
 When the same kind of mistake happens twice, add a check that runs in local CI and CI, and prove
 it by planting the mistake once. Cheap guards that paid off in practice:
 
+- **Probes of the running app print their own inputs first** (arguments, paths, ports it handed the
+  app) and wait until the previous run's processes are gone. A failing probe is as often a harness bug
+  (a quoting slip, a leftover child process answering) as an app bug, and its first line should say which.
 - **See the UI without the device:** headless screenshot tests (render real screens to images on the
   build machine) let the orchestrator look at every screen before shipping. Previews in another renderer
   (an HTML page of the same icons) can look right while the real renderer draws them wrong.
@@ -364,3 +370,10 @@ Changelog (newest last; each line: what changed — evidence):
   dirty and the output filter hid git's refusal; four per-risk-area reviews of a finished app found
   ~45 real bugs that ~600 green tests had missed (non-atomic writes, U+2028 splitting JSONL, timeouts
   blocking on grandchildren's pipes).
+- 2026-11-08: Worktree base commit in the brief; probes print their inputs and wait for old processes —
+  a helper's worktree was cut from main (docs only) instead of the scaffold branch, so it wrote a stand-in
+  package.json and tested Rust/tsc steps against throwaway crates (~120k tokens; merged by hand); about 8
+  reruns of a desktop-app probe chased "load failures" that were a `\\$` shell-quoting slip in the path
+  and a leftover WebView2 process reused by the next launch. Also seen again: a piped tool check printed
+  blanks instead of "missing", and the PATH had a 2013 ffmpeg shadowing a current one — pin and bundle
+  external binaries rather than trusting PATH.

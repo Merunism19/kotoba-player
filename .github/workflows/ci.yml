@@ -1,0 +1,39 @@
+# Hosted CI is deliberately cheap: PRs only, no docs-only runs, one ubuntu job.
+# The Rust/Tauri build (fmt, clippy, tests, installer) is gated locally by `node scripts/ci.mjs`
+# because it needs Windows + libmpv.
+name: ci
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Guards and code map
+        run: |
+          node scripts/guards/encoding.mjs
+          node scripts/guards/network.mjs
+          node scripts/codemap.mjs --check
+      - run: pnpm -s exec tsc --noEmit
+      - run: pnpm -s build
