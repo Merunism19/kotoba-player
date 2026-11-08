@@ -203,6 +203,51 @@ export interface WordAudio {
   credit?: string;
 }
 
+/** Everything the user can set (stored by Rust in settings.json; never in browser storage). */
+export interface Settings {
+  ankiDeck: string;
+  /** Extra tags on every mined card (no spaces). */
+  ankiTags: string[];
+  /** Use DeepL for lines without English subtitles (only when a key is stored). */
+  useDeepl: boolean;
+  /** Use a local Ollama model when DeepL isn't available. */
+  useOllama: boolean;
+  /** Preferred Ollama model (null = the first installed one). */
+  ollamaModel: string | null;
+  enMode: 'blur' | 'always' | 'hidden';
+  pauseOnHover: boolean;
+  /** Subtitle size multiplier, 0.7–1.6. */
+  subScale: number;
+  /** Z/X step in ms. */
+  offsetStepMs: number;
+  accent: 'sakura' | 'twilight' | 'matcha' | 'sunset';
+}
+
+/** Settings plus facts about services and secrets (the DeepL key itself never reaches the UI). */
+export interface SettingsView {
+  settings: Settings;
+  hasDeeplKey: boolean;
+  /** Installed Ollama models (empty when Ollama isn't running). */
+  ollamaModels: string[];
+  /** Name of the installed Japanese Windows voice, if any. */
+  japaneseVoice: string | null;
+  /** VOICEVOX is running on this PC. */
+  voicevox: boolean;
+  /** Dictionary attribution text for the About section (required by the licences). */
+  attribution: string | null;
+}
+
+/** Result of an automatic subtitle sync. */
+export interface SyncSummary {
+  /** Median shift applied (ms; positive = later). */
+  medianShiftMs: number;
+  /** Min and max differ when the track was split (e.g. around an ad break). */
+  minShiftMs: number;
+  maxShiftMs: number;
+  /** Lines whose timing changed. */
+  changed: number;
+}
+
 export interface Backend {
   /** Probe the file, find tracks (incl. external subs next to it), restore per-file state. */
   prepareMedia(path: string): Promise<PreparedMedia>;
@@ -232,6 +277,17 @@ export interface Backend {
   addCard(draftId: string, edits: { sentenceTranslation?: string; deck?: string }): Promise<number>;
   /** Open these notes in Anki's browser. */
   showInAnki(noteIds: number[]): Promise<void>;
+  /** Add a subtitle file (dropped on the player) to this video; it takes the JP or EN role by its language. */
+  addSubtitleFile(path: string, file: string): Promise<PreparedMedia>;
+  /** Retime subtitle track `subId` against `refSubId` (e.g. the release's English track); remembered per file. Reload its cues after. */
+  syncSubtitles(path: string, subId: number, refSubId: number): Promise<SyncSummary>;
+  /** Undo the auto-sync of a track. Reload its cues after. */
+  resetSync(path: string, subId: number): Promise<void>;
+  getSettings(): Promise<SettingsView>;
+  /** Save settings; resolves with what was stored (values are clamped). */
+  saveSettings(settings: Settings): Promise<Settings>;
+  /** Store a DeepL key (checked with DeepL first; resolves "used / limit" text) or remove it (null). */
+  setDeeplKey(key: string | null): Promise<string | null>;
 }
 
 const tauriBackend: Backend = {
@@ -249,6 +305,12 @@ const tauriBackend: Backend = {
   draftCard: (req) => invoke('draft_card', { req }),
   addCard: (draftId, edits) => invoke('add_card', { draftId, edits }),
   showInAnki: (noteIds) => invoke('show_in_anki', { noteIds }),
+  addSubtitleFile: (path, file) => invoke('add_subtitle_file', { path, file }),
+  syncSubtitles: (path, subId, refSubId) => invoke('sync_subtitles', { path, subId, refSubId }),
+  resetSync: (path, subId) => invoke('reset_sync', { path, subId }),
+  getSettings: () => invoke('get_settings'),
+  saveSettings: (settings) => invoke('save_settings', { settings }),
+  setDeeplKey: (key) => invoke('set_deepl_key', { key }),
 };
 
 let current: Backend = tauriBackend;

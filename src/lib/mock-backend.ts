@@ -139,6 +139,29 @@ const backend: Backend = {
     return 1700000000001 + mockLog.added.length;
   },
   async showInAnki() {},
+  // Phase 4 stubs; realistic mocks come with the Phase 4 UI.
+  async addSubtitleFile() {
+    throw new Error('mock: addSubtitleFile not implemented yet');
+  },
+  async syncSubtitles() {
+    return { medianShiftMs: 0, minShiftMs: 0, maxShiftMs: 0, changed: 0 };
+  },
+  async resetSync() {},
+  async getSettings() {
+    return {
+      settings: {
+        ankiDeck: 'Kotoba Mining', ankiTags: [], useDeepl: true, useOllama: true, ollamaModel: null,
+        enMode: 'blur', pauseOnHover: true, subScale: 1, offsetStepMs: 100, accent: 'sakura',
+      },
+      hasDeeplKey: false, ollamaModels: [], japaneseVoice: null, voicevox: false, attribution: null,
+    };
+  },
+  async saveSettings(s) {
+    return s;
+  },
+  async setDeeplKey() {
+    return null;
+  },
 };
 
 export function installMockBackend(): void {
