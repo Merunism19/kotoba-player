@@ -56,23 +56,23 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
-v0.3.0 — Phase 2 done (dictionary popup), on top of v0.2.0 (Phase 1, PR #2 — merge that first).
-Clicking a word looks it up in a bundled JMdict + Kanjium SQLite (`crates/jpdict`, 60 MB, built by
-`fetch-deps.mjs` from pinned sources; ~0.14 ms per lookup): whole words, deinflection chains,
-furigana, pitch graph, senses, result tabs. Word audio: VOICEVOX (if running, pitch applied) →
-Windows Japanese voice → none (this PC has neither yet: the button is disabled with a hint).
-Checked in the real app (知らなかった → 知る [negative, past], 綺麗 atamadaka [1]).
-Phase 3 pieces already done on side branches: `p3-card` (Anki note type templates + card shots),
-AnkiConnect client + Phase 3 contract drafted (scratch, to be committed on the Phase 3 branch).
+v0.4.0 — Phase 3 done (Anki mining), stacked on v0.3.0 (PR #3) and v0.2.0 (PR #2): merge in order.
+"Add to Anki" in the popup → preview of the real card (front/back from `anki/` templates, dark/light),
+editable translation, senses, deck, duplicate notice → AnkiConnect: creates the "Kotoba Mining" note
+type + deck if missing, uploads a WebP frame and an MP3 of the line (+ word audio when available),
+adds the note, marks the line as mined (gold ticks). Shift+click adds instantly.
+Checked in the real app against `scripts/dev/fake-anki.mjs` (a fake AnkiConnect on :8765): every
+field and the exact action sequence; end-to-end Rust test does the same on the sample.
+Phase 4 started on `phase4-polish` (DeepL/Ollama fallback, settings commands, alass sync — WIP).
 
 ## Next steps
-1. Phase 3 (Anki mining): commit the AnkiConnect client + contract, merge `p3-card`, media
-   (screenshot WebP, sentence MP3, word audio), card draft/preview modal, "Add to Anki".
-2. Phase 4: DeepL/Ollama translation fallback, settings screen, transcript sidebar, auto-sync (alass), Yomitan import.
-3. Phase 5: installer + size work (UniDic 194 MB, static ffmpeg 260 MB), About/licences, review loop.
+1. Owner: install AnkiConnect (2055492159) and try mining for real (DEVICE-TEST-PLAN v0.4.0).
+2. Phase 4: finish sync/external-subs commands, settings screen, transcript sidebar, translation UI.
+3. Phase 5: installer + size work, About/licences, review loop.
 
 ## Status log (keep ≤ 8 lines; older lines → docs/HISTORY.md)
 - 2026-11-08: Read AGENT-WORKFLOW.md; wrote DESIGN.md, mockup, project docs (HANDOFF/WORKFLOW/BRIEF/test plan).
 - 2026-11-08: Phase 0: repo + private GitHub, Rust installed, scaffold, helper built CI/ship/guards, spike passed.
 - 2026-11-08: Phase 1: contract-first, 3 helpers in parallel worktrees (subtitles, tokenizer, UI) + Rust core; real-app probe passed.
 - 2026-11-08: Phase 2: dictionary DB + lookup (helper), popup UI (helper), word audio (orchestrator); popup opacity raised after the real-app shot.
+- 2026-11-08: Phase 3: card templates + mining UI (helpers), AnkiConnect client + card builder (orchestrator); real-app run against a fake AnkiConnect.

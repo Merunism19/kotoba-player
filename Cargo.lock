@@ -2125,7 +2125,7 @@ dependencies = [
 
 [[package]]
 name = "kotoba-player"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "alass-core",
  "base64 0.22.1",

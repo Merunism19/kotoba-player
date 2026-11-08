@@ -20,7 +20,14 @@ button { font-family: inherit; color: inherit; }
   box-shadow: var(--shadow); font-size: 13px; line-height: 1.45; animation: toast-in 0.2s var(--ease-spring);
 }
 .toast.error { border-color: rgba(255, 107, 107, 0.45); }
+.toast.ok { border-color: rgba(79, 214, 168, 0.4); }
 .toast-icon { color: var(--err); display: grid; padding-top: 1px; }
+.toast-icon.ok { color: var(--ok); }
+.toast-action {
+  flex: none; align-self: center; height: 26px; padding: 0 12px; border-radius: var(--r-pill); cursor: pointer;
+  font: 600 12px var(--font-ui); color: var(--accent); background: var(--accent-soft); border: 1px solid rgba(255, 122, 162, 0.35);
+}
+.toast-action:hover { background: rgba(255, 122, 162, 0.26); }
 .toast-msg { flex: 1; padding-top: 1px; }
 .toast-x { width: 24px; height: 24px; flex: none; color: var(--text-3); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
