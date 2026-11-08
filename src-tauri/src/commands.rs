@@ -271,11 +271,16 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
             .push(media::external_track(Path::new(&file), id));
     }
     let sub_cache = core.cache_dir.join("subs");
+    // A failed extraction (disk full, odd stream) must not stop the video from playing: continue
+    // with external subtitle files only (review 2026-11-08).
     let mut files: HashMap<u32, PathBuf> =
-        media::extract_subs(tools, video, &probe.tracks, &sub_cache)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .collect();
+        match media::extract_subs(tools, video, &probe.tracks, &sub_cache) {
+            Ok(v) => v.into_iter().collect(),
+            Err(e) => {
+                eprintln!("[kotoba] subtitle extraction failed: {e}");
+                HashMap::new()
+            }
+        };
     for t in probe.tracks.iter().filter(|t| t.external) {
         if let Some(p) = &t.path {
             files.insert(t.id, PathBuf::from(p));
@@ -306,7 +311,10 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
         .and_then(|(id, t)| t.signs_only_ass().map(|ass| (id, ass)))
         .and_then(|(id, ass)| {
             let out = sub_cache.join(format!("{}-s{id}.signs.ass", media::file_key(video)));
-            std::fs::write(&out, ass)
+            // Temp + rename so mpv never reads a half-written file.
+            let tmp = out.with_extension(format!("{}.part", std::process::id()));
+            std::fs::write(&tmp, ass)
+                .and_then(|_| std::fs::rename(&tmp, &out))
                 .ok()
                 .map(|_| out.to_string_lossy().into_owned())
         });
@@ -445,7 +453,7 @@ pub struct FileStatePatch {
 }
 
 /// Remember the user's choices for this file.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_file_state(
     core: tauri::State<'_, Arc<Core>>,
     path: String,
@@ -473,7 +481,7 @@ fn thumb_path(core: &Core, video: &Path) -> PathBuf {
 }
 
 /// Remember the playback position; refreshes the card thumbnail in the background now and then.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_position(
     core: tauri::State<'_, Arc<Core>>,
     path: String,
@@ -499,9 +507,16 @@ pub fn save_position(
     };
     if refresh_thumb && let Some(tools) = core.tools.clone() {
         let out = thumb_path(&core, Path::new(&path));
+        let core = core.inner().clone();
+        // thumb_pos_ms was set above as a reservation (no duplicate runs); a failure clears it so
+        // the next save retries.
         std::thread::spawn(move || {
             if let Err(e) = media::thumbnail(&tools, Path::new(&path), position_ms, &out) {
                 eprintln!("[kotoba] thumbnail failed: {e}");
+                let mut lib = lock(&core.library);
+                if let Some(s) = lib.files.get_mut(&path) {
+                    s.thumb_pos_ms = None;
+                }
             }
         });
     }
@@ -509,11 +524,16 @@ pub fn save_position(
 }
 
 /// "Continue watching": unfinished files, most recent first.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn recent_files(core: tauri::State<'_, Arc<Core>>) -> Vec<RecentItem> {
-    let lib = lock(&core.library);
-    lib.continue_watching(20)
+    // Copy the entries out first: checking files (maybe on a slow drive) must not hold the lock.
+    let entries: Vec<(String, library::FileState)> = lock(&core.library)
+        .continue_watching(20)
         .into_iter()
+        .map(|(p, s)| (p.clone(), s.clone()))
+        .collect();
+    entries
+        .iter()
         .filter(|(p, _)| Path::new(p.as_str()).is_file())
         .map(|(p, s)| RecentItem {
             path: p.clone(),
@@ -549,6 +569,11 @@ pub fn startup_files() -> Vec<String> {
 // ---- Anki mining -------------------------------------------------------------------------------
 
 impl Core {
+    /// The app's cache folder (extracted subtitles, card media, thumbnails).
+    pub fn cache_dir(&self) -> &Path {
+        &self.cache_dir
+    }
+
     fn anki(&self) -> crate::anki::Client {
         crate::anki::Client::new(&self.anki_base, None)
     }
@@ -622,9 +647,22 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         .ok_or_else(|| "That subtitle line is no longer available.".to_string())?;
 
     // Media (each part degrades to "absent" instead of failing the whole card).
+    // Everything that changes the media is in the key (file identity, line, frame, offset, audio
+    // track): a reused name would also overwrite an earlier card's media in Anki (review 2026-11-08).
+    let offset_ms = req.offset_ms.clamp(-600_000, 600_000);
     let key = format!(
         "{:016x}",
-        media::fnv1a(format!("{}|{}|{}", req.path, req.cue_id, req.frame_ms).as_bytes())
+        media::fnv1a(
+            format!(
+                "{}|{}|{}|{}|{:?}",
+                media::file_key(video),
+                req.cue_id,
+                req.frame_ms,
+                offset_ms,
+                req.audio_id
+            )
+            .as_bytes()
+        )
     );
     let cards = core.cache_dir.join("cards");
     let shot_name = format!("kotoba_{key}.webp");
@@ -635,8 +673,8 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
             .is_ok();
     let audio_name = format!("kotoba_{key}_s.mp3");
     let clip = cards.join(&audio_name);
-    let from = (cue.start_ms + req.offset_ms - 250).max(0) as u64;
-    let to = (cue.end_ms + req.offset_ms + 250).max(0) as u64;
+    let from = cue.start_ms.saturating_add(offset_ms - 250).max(0) as u64;
+    let to = cue.end_ms.saturating_add(offset_ms + 250).max(0) as u64;
     let audio_index = req.audio_id.unwrap_or(1).saturating_sub(1);
     let clip_ok = clip.is_file()
         || media::audio_clip(tools, video, audio_index, from, to, &clip)
@@ -711,7 +749,7 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         "PitchClass",
         e.pitch
             .first()
-            .map(|p| p.pattern.clone())
+            .map(|p| mining::escape(&p.pattern))
             .unwrap_or_default(),
     );
     put("Meaning", mining::meaning_html(e, &req.senses));
@@ -759,7 +797,7 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
             .map(|n| format!("[sound:{n}]"))
             .unwrap_or_default(),
     );
-    let start_ms = (cue.start_ms + req.offset_ms).max(0) as u64;
+    let start_ms = cue.start_ms.saturating_add(offset_ms).max(0) as u64;
     put(
         "Source",
         mining::escape(&format!("{title} · {}", mining::clock(start_ms))),
@@ -837,19 +875,26 @@ pub struct CardEdits {
 }
 
 fn add(core: &Core, draft_id: &str, edits: CardEdits) -> Result<i64, String> {
-    let (path, cue_id, mut fields, media_files, tags) = {
-        let drafts = lock(&core.drafts);
-        let d = drafts
-            .get(draft_id)
-            .ok_or_else(|| "This card draft expired; click the word again.".to_string())?;
-        (
-            d.path.clone(),
-            d.cue_id,
-            d.fields.clone(),
-            d.media.clone(),
-            d.tags.clone(),
-        )
-    };
+    // Take the draft so a second "Send" of the same draft can't add it twice; put it back on failure
+    // so the user can retry (review 2026-11-08).
+    let draft = lock(&core.drafts).remove(draft_id).ok_or_else(|| {
+        "This card was already sent, or the draft expired; click the word again.".to_string()
+    })?;
+    let result = send_draft(core, &draft, edits);
+    if result.is_err() {
+        lock(&core.drafts).insert(draft_id.to_string(), draft);
+    }
+    result
+}
+
+fn send_draft(core: &Core, draft: &Draft, edits: CardEdits) -> Result<i64, String> {
+    let (path, cue_id, mut fields, media_files, tags) = (
+        draft.path.clone(),
+        draft.cue_id,
+        draft.fields.clone(),
+        draft.media.clone(),
+        draft.tags.clone(),
+    );
     if let Some(t) = edits.sentence_translation {
         fields.insert(
             "SentenceTranslation".into(),
@@ -872,7 +917,6 @@ fn add(core: &Core, draft_id: &str, edits: CardEdits) -> Result<i64, String> {
         fields,
         tags,
     })?;
-    lock(&core.drafts).remove(draft_id);
     {
         let mut lib = lock(&core.library);
         let e = lib.entry(&path);
@@ -1034,7 +1078,7 @@ pub async fn sync_subtitles(
 }
 
 /// Forget the auto-sync of a track (back to the file's own timing).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reset_sync(
     core: tauri::State<'_, Arc<Core>>,
     path: String,
@@ -1085,15 +1129,17 @@ pub async fn get_settings(core: tauri::State<'_, Arc<Core>>) -> Result<SettingsV
 }
 
 /// Save settings (values are clamped/repaired); returns what was stored.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_settings(
     core: tauri::State<'_, Arc<Core>>,
     settings: crate::settings::Settings,
 ) -> Result<crate::settings::Settings, String> {
     let clean = settings.sanitized();
+    // Hold the lock across the write so two saves (or a save + a card's deck change) can't interleave.
+    let mut current = lock(&core.settings);
     stores::save(&core.data_dir, Store::Settings, &clean)
         .map_err(|e| format!("Couldn't save settings: {e}"))?;
-    *lock(&core.settings) = clean.clone();
+    *current = clean.clone();
     Ok(clean)
 }
 

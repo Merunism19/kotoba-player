@@ -83,7 +83,7 @@ impl Dict {
 
     /// A value from the `meta` table (versions, attribution).
     pub fn meta(&self, key: &str) -> Option<String> {
-        let conn = self.conn.lock().ok()?;
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
             .ok()
     }
@@ -112,9 +112,8 @@ impl Dict {
         if max == 0 {
             return Vec::new();
         }
-        let Ok(conn) = self.conn.lock() else {
-            return Vec::new();
-        };
+        // A panic in an earlier lookup must not disable lookups for the rest of the session.
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         // One read transaction for the whole lookup: SQLite then takes the file lock once instead of once
         // per statement (about 30 microseconds each on Windows, which dominated the lookup time).
         let Ok(tx) = conn.unchecked_transaction() else {

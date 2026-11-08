@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 /// A track as the UI sees it (mirrors `Track` in src/lib/backend.ts).
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -259,6 +261,93 @@ fn quiet(program: &Path) -> Command {
     c
 }
 
+/// Inputs may only be local files: a crafted "video" that is really a playlist (HLS, concat, sdp)
+/// must not make ffmpeg/ffprobe fetch URLs or read other files (security review 2026-11-08).
+const INPUT_GUARD: [&str; 2] = ["-protocol_whitelist", "file"];
+
+/// Longest a single ffprobe/ffmpeg run may take before it's killed (a stalled network share
+/// otherwise blocked opening any other file).
+const PROCESS_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Run a command, capturing output, killing it after `timeout`.
+fn run(mut cmd: Command, timeout: Duration) -> Result<std::process::Output, MediaError> {
+    use std::io::Read;
+    use std::process::Stdio;
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut out = child.stdout.take();
+    let mut err = child.stderr.take();
+    let t_out = std::thread::spawn(move || {
+        let mut b = Vec::new();
+        if let Some(o) = out.as_mut() {
+            let _ = o.read_to_end(&mut b);
+        }
+        b
+    });
+    let t_err = std::thread::spawn(move || {
+        let mut b = Vec::new();
+        if let Some(e) = err.as_mut() {
+            let _ = e.read_to_end(&mut b);
+        }
+        b
+    });
+    let start = Instant::now();
+    let status = loop {
+        if let Some(s) = child.try_wait()? {
+            break s;
+        }
+        if start.elapsed() > timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(MediaError::Probe(format!(
+                "gave up after {} s (is the file on a slow or disconnected drive?)",
+                timeout.as_secs()
+            )));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    };
+    Ok(std::process::Output {
+        status,
+        stdout: t_out.join().unwrap_or_default(),
+        stderr: t_err.join().unwrap_or_default(),
+    })
+}
+
+/// A temp name next to `out` that no other writer uses (pid + counter), keeping the extension.
+fn tmp_for(out: &Path) -> PathBuf {
+    static N: AtomicU64 = AtomicU64::new(0);
+    let n = N.fetch_add(1, Ordering::Relaxed);
+    let ext = out.extension().and_then(|e| e.to_str()).unwrap_or("bin");
+    out.with_extension(format!("{}-{n}.part.{ext}", std::process::id()))
+}
+
+/// Move a finished temp file into place. If another writer already put the same file there, keep
+/// theirs (same content by construction) and drop ours.
+fn finish(tmp: &Path, out: &Path) -> Result<(), MediaError> {
+    match std::fs::rename(tmp, out) {
+        Ok(()) => Ok(()),
+        Err(_) if out.is_file() => {
+            let _ = std::fs::remove_file(tmp);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(tmp);
+            Err(e.into())
+        }
+    }
+}
+
+fn last_line(stderr: &[u8], fallback: &str) -> String {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .last()
+        .unwrap_or(fallback)
+        .to_string()
+}
+
 /// Probe a media file: embedded tracks plus external subtitle files next to it.
 pub fn probe(tools: &Tools, video: &Path) -> Result<Probe, MediaError> {
     if !video.is_file() {
@@ -267,7 +356,8 @@ pub fn probe(tools: &Tools, video: &Path) -> Result<Probe, MediaError> {
             video.display()
         )));
     }
-    let out = quiet(&tools.ffprobe)
+    let mut cmd = quiet(&tools.ffprobe);
+    cmd.args(INPUT_GUARD)
         .args([
             "-v",
             "error",
@@ -275,14 +365,12 @@ pub fn probe(tools: &Tools, video: &Path) -> Result<Probe, MediaError> {
             "json",
             "-show_format",
             "-show_streams",
+            "-i",
         ])
-        .arg(video)
-        .output()?;
+        .arg(video);
+    let out = run(cmd, PROCESS_TIMEOUT)?;
     if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr);
-        return Err(MediaError::Probe(
-            err.lines().last().unwrap_or("ffprobe failed").to_string(),
-        ));
+        return Err(MediaError::Probe(last_line(&out.stderr, "ffprobe failed")));
     }
     let mut p = parse_ffprobe(&String::from_utf8_lossy(&out.stdout))?;
     if !p
@@ -347,9 +435,11 @@ pub fn extract_subs(
     std::fs::create_dir_all(cache_dir)?;
     let key = file_key(video);
     let mut result = Vec::new();
+    let mut pending: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut cmd = quiet(&tools.ffmpeg);
-    cmd.args(["-v", "error", "-nostdin", "-y", "-i"]).arg(video);
-    let mut pending = 0;
+    cmd.args(INPUT_GUARD)
+        .args(["-v", "error", "-nostdin", "-y", "-i"])
+        .arg(video);
     for t in tracks.iter().filter(|t| is_text_sub(t) && !t.external) {
         let Some(idx) = t.stream_index else { continue };
         let ext = extract_ext(&t.codec);
@@ -363,28 +453,23 @@ pub fn extract_subs(
         } else {
             "copy"
         };
-        // Write to a temp name and rename after success, so a crash never leaves a half file in the cache.
-        let tmp = cache_dir.join(format!("{key}-s{}.part.{ext}", t.id));
+        // Temp name + rename after success: a crash never leaves a half file in the cache.
+        let tmp = tmp_for(&out);
         cmd.args(["-map", &format!("0:{idx}"), "-c:s", codec])
             .arg(&tmp);
-        pending += 1;
+        pending.push((tmp, out));
     }
-    if pending > 0 {
-        let out = cmd.output()?;
+    if !pending.is_empty() {
+        let out = run(cmd, PROCESS_TIMEOUT)?;
         if !out.status.success() {
-            let err = String::from_utf8_lossy(&out.stderr);
-            return Err(MediaError::Extract(
-                err.lines().last().unwrap_or("ffmpeg failed").to_string(),
-            ));
+            for (tmp, _) in &pending {
+                let _ = std::fs::remove_file(tmp);
+            }
+            return Err(MediaError::Extract(last_line(&out.stderr, "ffmpeg failed")));
         }
-        for (id, final_path) in &result {
-            let ext = final_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("srt");
-            let tmp = cache_dir.join(format!("{key}-s{id}.part.{ext}"));
+        for (tmp, final_path) in &pending {
             if tmp.is_file() {
-                std::fs::rename(&tmp, final_path)?;
+                finish(tmp, final_path)?;
             }
         }
     }
@@ -393,53 +478,41 @@ pub fn extract_subs(
 
 /// Grab one frame at `at_ms` as a small JPEG (for "Continue watching" cards).
 pub fn thumbnail(tools: &Tools, video: &Path, at_ms: u64, out: &Path) -> Result<(), MediaError> {
-    if let Some(dir) = out.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = out.with_extension("part.jpg");
-    let st = quiet(&tools.ffmpeg)
-        .args([
-            "-v",
-            "error",
-            "-nostdin",
-            "-y",
-            "-ss",
-            &format!("{:.3}", at_ms as f64 / 1000.0),
-            "-i",
-        ])
-        .arg(video)
-        .args(["-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4"])
-        .arg(&tmp)
-        .status()?;
-    if !st.success() || !tmp.is_file() {
-        return Err(MediaError::Extract("thumbnail failed".into()));
-    }
-    std::fs::rename(&tmp, out)?;
-    Ok(())
+    let args: Vec<String> = vec![
+        "-ss".into(),
+        format!("{:.3}", at_ms as f64 / 1000.0),
+        "-i".into(),
+        video.to_string_lossy().into_owned(),
+        "-frames:v".into(),
+        "1".into(),
+        "-vf".into(),
+        "scale=480:-2".into(),
+        "-q:v".into(),
+        "4".into(),
+    ];
+    ffmpeg_to(tools, out, &args, "thumbnail")
 }
 
-/// Run ffmpeg writing to a temp file next to `out`, then rename (no half files in the cache).
+/// Run ffmpeg writing to a unique temp file next to `out`, then move it into place.
 fn ffmpeg_to(tools: &Tools, out: &Path, args: &[String], what: &str) -> Result<(), MediaError> {
     if let Some(dir) = out.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let ext = out.extension().and_then(|e| e.to_str()).unwrap_or("bin");
-    let tmp = out.with_extension(format!("part.{ext}"));
-    let res = quiet(&tools.ffmpeg)
+    let tmp = tmp_for(out);
+    let mut cmd = quiet(&tools.ffmpeg);
+    cmd.args(INPUT_GUARD)
         .args(["-v", "error", "-nostdin", "-y"])
         .args(args)
-        .arg(&tmp)
-        .output()?;
+        .arg(&tmp);
+    let res = run(cmd, PROCESS_TIMEOUT)?;
     if !res.status.success() || !tmp.is_file() {
-        let err = String::from_utf8_lossy(&res.stderr);
         let _ = std::fs::remove_file(&tmp);
         return Err(MediaError::Extract(format!(
             "{what}: {}",
-            err.lines().last().unwrap_or("ffmpeg failed")
+            last_line(&res.stderr, "ffmpeg failed")
         )));
     }
-    std::fs::rename(&tmp, out)?;
-    Ok(())
+    finish(&tmp, out)
 }
 
 /// The video frame at `at_ms` (no subtitles), 640 px wide, as WebP — the card's screenshot.

@@ -8,6 +8,7 @@ mod commands;
 mod library;
 mod media;
 mod mining;
+mod mpv_guard;
 mod settings;
 mod stores;
 mod sync;
@@ -50,6 +51,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            mpv_guard::mpv_start,
+            mpv_guard::mpv_command,
+            mpv_guard::mpv_set,
             commands::prepare_media,
             commands::get_cues,
             commands::align_cues,

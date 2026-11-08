@@ -150,7 +150,14 @@ impl Client {
         }
         let styling: Value = self.call("modelStyling", json!({ "modelName": MODEL_NAME }))?;
         let css = styling.get("css").and_then(|c| c.as_str()).unwrap_or("");
-        if installed_version(css).is_some_and(|v| v >= nt.version) {
+        // No version marker → this "Kotoba Mining" isn't ours (e.g. the user's own type with the
+        // same name): never overwrite it (review 2026-11-08).
+        let Some(installed) = installed_version(css) else {
+            return Err(format!(
+                "Anki already has a note type named \"{MODEL_NAME}\" that this app didn't create. Rename it in Anki (Tools → Manage Note Types) so the app can make its own."
+            ));
+        };
+        if installed >= nt.version {
             return Ok("current");
         }
         let templates: Value = self.call("modelTemplates", json!({ "modelName": MODEL_NAME }))?;

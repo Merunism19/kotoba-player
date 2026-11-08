@@ -28,6 +28,9 @@ pub fn escape(s: &str) -> String {
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
+            // Brackets would turn subtitle text into Anki furigana or a fake [sound:...] tag.
+            '[' => out.push_str("&#91;"),
+            ']' => out.push_str("&#93;"),
             '\n' => out.push_str("<br>"),
             _ => out.push(c),
         }
@@ -47,7 +50,7 @@ pub fn anki_furigana(segs: &[Furigana]) -> String {
                 }
                 out.push_str(&escape(&s.text));
                 out.push('[');
-                out.push_str(r);
+                out.push_str(&escape(r));
                 out.push(']');
             }
             None => out.push_str(&escape(&s.text)),
@@ -59,7 +62,10 @@ pub fn anki_furigana(segs: &[Furigana]) -> String {
 /// The sentence with the target (code points `start..start+len`) wrapped in `<b>`.
 pub fn bold_sentence(text: &str, start: usize, len: usize) -> String {
     let chars: Vec<char> = text.chars().collect();
-    let (a, b) = (start.min(chars.len()), (start + len).min(chars.len()));
+    let (a, b) = (
+        start.min(chars.len()),
+        start.saturating_add(len).min(chars.len()),
+    );
     let part = |x: &[char]| escape(&x.iter().collect::<String>());
     format!(
         "{}<b>{}</b>{}",
@@ -83,11 +89,11 @@ fn has_kanji(s: &str) -> bool {
 
 /// Sentence furigana in Anki syntax with `<b>` around the units covering the target range.
 pub fn sentence_furigana(units: &[Unit], start: usize, len: usize) -> String {
-    let end = start + len;
+    let end = start.saturating_add(len);
     let mut out = String::new();
     let mut open = false;
     for u in units {
-        let u_end = u.start + u.len;
+        let u_end = u.start.saturating_add(u.len);
         if !open && u_end > start && u.start < end {
             out.push_str("<b>");
             open = true;

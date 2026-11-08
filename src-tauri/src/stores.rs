@@ -54,27 +54,51 @@ impl Store {
     }
 }
 
-/// Read a store; a missing or unreadable file gives the default (a corrupt file is kept aside as `.bad`).
+/// Move an unreadable store aside with a timestamp (never overwriting an earlier one), so starting
+/// fresh can't destroy the user's data.
+fn set_aside(path: &Path, why: &str) {
+    let aside = path.with_extension(format!("json.bad-{}", crate::library::now_ms()));
+    log_warn(&format!(
+        "{} is unreadable ({why}); starting fresh and keeping it as {}",
+        path.display(),
+        aside.display()
+    ));
+    let _ = std::fs::rename(path, aside);
+}
+
+/// Read a store. A missing file gives the default; a file that can't be read (after a few retries,
+/// e.g. a sharing violation) or parsed is moved aside first, so the next save can't overwrite it.
 pub fn load<T: DeserializeOwned + Default>(data_dir: &Path, store: Store) -> T {
     let path = store.path(data_dir);
-    let Ok(bytes) = std::fs::read(&path) else {
-        return T::default();
-    };
-    match serde_json::from_slice(&bytes) {
-        Ok(v) => v,
-        Err(e) => {
-            log_warn(&format!(
-                "{} is unreadable ({e}); starting fresh and keeping it as .bad",
-                path.display()
-            ));
-            let _ = std::fs::rename(&path, path.with_extension("json.bad"));
-            T::default()
+    let mut last_err = None;
+    for attempt in 0..3 {
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                return match serde_json::from_slice(&bytes) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        set_aside(&path, &e.to_string());
+                        T::default()
+                    }
+                };
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return T::default(),
+            Err(e) => {
+                last_err = Some(e);
+                std::thread::sleep(std::time::Duration::from_millis(100 * (attempt + 1)));
+            }
         }
     }
+    set_aside(&path, &last_err.map(|e| e.to_string()).unwrap_or_default());
+    T::default()
 }
+
+/// One writer per store at a time (the temp file name is shared).
+static WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Write a store atomically: temp file in the same directory, flush to disk, then rename over the old one.
 pub fn save<T: Serialize>(data_dir: &Path, store: Store, value: &T) -> std::io::Result<()> {
+    let _guard = WRITE_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     std::fs::create_dir_all(data_dir)?;
     let path = store.path(data_dir);
     let tmp = path.with_extension("json.tmp");
@@ -123,7 +147,17 @@ mod tests {
         std::fs::write(Store::Library.path(&d), b"{not json").unwrap();
         let v: BTreeMap<String, u32> = load(&d, Store::Library);
         assert!(v.is_empty());
-        assert!(Store::Library.path(&d).with_extension("json.bad").exists());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        // A second corrupt file is kept too (timestamped names never overwrite each other).
+        std::fs::write(Store::Library.path(&d), b"{also bad").unwrap();
+        let _: BTreeMap<String, u32> = load(&d, Store::Library);
+        let aside = std::fs::read_dir(&d)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("json.bad-"))
+            .count();
+        assert_eq!(aside, 2);
+        assert!(!Store::Library.path(&d).exists());
         std::fs::remove_dir_all(&d).unwrap();
     }
 
