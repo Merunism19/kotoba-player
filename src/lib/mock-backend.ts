@@ -96,6 +96,13 @@ const backend: Backend = {
   async startupFiles() {
     return mockParams.has('open') ? ['C:/Anime/Sunset Journey - 07.mkv'] : [];
   },
+  // Phase 2 stubs; realistic mock entries come with the popup UI.
+  async lookupAt() {
+    return [];
+  },
+  async wordAudio() {
+    return null;
+  },
 };
 
 export function installMockBackend(): void {
