@@ -37,6 +37,7 @@ pub fn run() {
             let warm = core.clone();
             std::thread::spawn(move || {
                 let _ = warm.tokenizer();
+                let _ = warm.dict();
             });
             app.manage(core);
             Ok(())
@@ -46,6 +47,8 @@ pub fn run() {
             commands::get_cues,
             commands::align_cues,
             commands::tokenize,
+            commands::lookup_at,
+            commands::word_audio,
             commands::save_file_state,
             commands::save_position,
             commands::recent_files,

@@ -309,9 +309,19 @@ impl<'de, 'a> Visitor<'de> for WordsSeed<'a> {
 
 // ---- the build ----------------------------------------------------------------------------------------
 
-const ATTRIBUTION: &str = "This dictionary uses JMdict/EDICT data. It is the property of the Electronic Dictionary Research and Development Group (EDRDG), \
-and is used in conformance with the Group's licence (CC BY-SA 4.0): https://www.edrdg.org/edrdg/licence.html. \
-Pitch accents are from Kanjium (CC BY-SA 4.0): https://github.com/mifunetoshiro/kanjium.";
+// Licence attribution text required by EDRDG and Kanjium (stored in the DB for the About screen; never fetched).
+// network-guard: ok attribution URL, never fetched
+const EDRDG_LICENCE_URL: &str = "https://www.edrdg.org/edrdg/licence.html";
+// network-guard: ok attribution URL, never fetched
+const KANJIUM_URL: &str = "https://github.com/mifunetoshiro/kanjium";
+/// The attribution sentence (with the licence and source links) stored in the DB's `meta` table.
+fn attribution() -> String {
+    format!(
+        "This dictionary uses JMdict/EDICT data. It is the property of the Electronic Dictionary Research and \
+         Development Group (EDRDG), and is used in conformance with the Group's licence (CC BY-SA 4.0): \
+         {EDRDG_LICENCE_URL}. Pitch accents are from Kanjium (CC BY-SA 4.0): {KANJIUM_URL}."
+    )
+}
 
 fn tmp_path(out: &Path) -> PathBuf {
     let mut name = out
@@ -480,9 +490,10 @@ fn build_into(jmdict: &Path, accents: &Path, db_path: &Path) -> Result<BuildStat
             ("jmdict_version", src.version),
             ("jmdict_date", src.dict_date),
             ("jmdict_revisions", src.revisions.join(",")),
+            // network-guard: ok source credit stored in the DB; never fetched
             ("jmdict_source", "JMdict English via jmdict-simplified (https://github.com/scriptin/jmdict-simplified)".to_string()),
             ("kanjium_commit", KANJIUM_COMMIT.to_string()),
-            ("attribution", ATTRIBUTION.to_string()),
+            ("attribution", attribution()),
             ("entry_count", entries.to_string()),
             ("pitch_count", pitch_rows.to_string()),
             ("built_at_unix", built_at.to_string()),

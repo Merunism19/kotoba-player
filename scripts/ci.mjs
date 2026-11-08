@@ -30,6 +30,8 @@ const steps = [
   },
   { name: 'cargo clippy', cmd: 'cargo', args: ['clippy', '-q', '--workspace', '--all-targets', '--', '-D', 'warnings'], slow: true, skip: () => !has('Cargo.toml') && 'no Cargo.toml' },
   { name: 'cargo test', cmd: 'cargo', args: ['test', '-q', '--workspace'], skip: () => !has('Cargo.toml') && 'no Cargo.toml' },
+  // Headless screenshots of every screen (mock mode) + UI behaviour tests; images in artifacts/shots/.
+  { name: 'shots', cmd: 'pnpm', args: ['-s', 'shots'], slow: true, skip: () => !has('playwright.config.ts') && 'no playwright config' },
 ];
 
 function tail(text, n = 40) {

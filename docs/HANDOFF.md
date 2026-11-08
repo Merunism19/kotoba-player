@@ -44,7 +44,9 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
   Read node properties (e.g. `track-list`) as `'string'` — mpv returns JSON.
 - **Pass integer properties as strings** (`setProperty('secondary-sid', '2')`): a JS number arrives as a double and mpv refuses it.
 - mpv's `sub-text` joins every line on screen (sign + dialogue) — we parse tracks ourselves (Phase 1).
-- CSS `backdrop-filter` can't blur the video (separate surface): tinted glass over video (DESIGN §5).
+- CSS `backdrop-filter` can't blur the video (separate surface): tinted glass over video (DESIGN §5);
+  over the real mpv surface 0.9 opacity still let saturated colours bleed through — popup uses 0.96.
+- Playwright reuses a dev server already on :1420 locally (`reuseExistingServer: !CI`); stop leftover Vite servers you started.
 - React dev mode runs effects twice: initialise mpv once per page (module-level promise).
 - WebView2 browser processes outlive the app for a few seconds and get reused by the next launch
   (new debug port ignored) — the probe waits for them; do the same in any launch automation.
@@ -54,20 +56,23 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
-v0.2.0 — Phase 1 done (player MVP): full-window home with "Continue watching" (thumbnails), player
-with auto-hiding controls, seek-bar cue ticks, track picker, offset hotkeys (Z/X, Shift+Z), line
-navigation (A/S/D), resume + per-file memory (`library.json` via `stores.rs`), error toasts.
-Subtitles are parsed in Rust (`crates/subtitles`); dialogue is drawn by the WebView as whole-word
-units (`crates/jptext`, Lindera + UniDic); signs/songs are drawn by mpv from a signs-only ASS.
-Checked in the real app with `scripts/dev/probe.sh` (Hi10P sample: words, EN alignment, signs track).
+v0.3.0 — Phase 2 done (dictionary popup), on top of v0.2.0 (Phase 1, PR #2 — merge that first).
+Clicking a word looks it up in a bundled JMdict + Kanjium SQLite (`crates/jpdict`, 60 MB, built by
+`fetch-deps.mjs` from pinned sources; ~0.14 ms per lookup): whole words, deinflection chains,
+furigana, pitch graph, senses, result tabs. Word audio: VOICEVOX (if running, pitch applied) →
+Windows Japanese voice → none (this PC has neither yet: the button is disabled with a hint).
+Checked in the real app (知らなかった → 知る [negative, past], 綺麗 atamadaka [1]).
+Phase 3 pieces already done on side branches: `p3-card` (Anki note type templates + card shots),
+AnkiConnect client + Phase 3 contract drafted (scratch, to be committed on the Phase 3 branch).
 
 ## Next steps
-1. Phase 2 (DESIGN §9): dictionary build tool (JMdict + Kanjium → SQLite), `crates/jpdict`
-   (deinflection, lookup at position, pitch), popup UI, word audio (VOICEVOX → Windows voice).
-2. Known gaps: audio-track choice isn't remembered (contract has no field); white subtitle text could
-   use a stronger outline over very bright frames; UniDic embeds ~194 MB into the binary (revisit in Phase 5).
+1. Phase 3 (Anki mining): commit the AnkiConnect client + contract, merge `p3-card`, media
+   (screenshot WebP, sentence MP3, word audio), card draft/preview modal, "Add to Anki".
+2. Phase 4: DeepL/Ollama translation fallback, settings screen, transcript sidebar, auto-sync (alass), Yomitan import.
+3. Phase 5: installer + size work (UniDic 194 MB, static ffmpeg 260 MB), About/licences, review loop.
 
 ## Status log (keep ≤ 8 lines; older lines → docs/HISTORY.md)
 - 2026-11-08: Read AGENT-WORKFLOW.md; wrote DESIGN.md, mockup, project docs (HANDOFF/WORKFLOW/BRIEF/test plan).
 - 2026-11-08: Phase 0: repo + private GitHub, Rust installed, scaffold, helper built CI/ship/guards, spike passed.
 - 2026-11-08: Phase 1: contract-first, 3 helpers in parallel worktrees (subtitles, tokenizer, UI) + Rust core; real-app probe passed.
+- 2026-11-08: Phase 2: dictionary DB + lookup (helper), popup UI (helper), word audio (orchestrator); popup opacity raised after the real-app shot.

@@ -16,6 +16,11 @@ One ordered list of checks that need the owner's machine. Every PR adds its chec
 - [ ] Z/X shifts subtitles, badge shows the offset; reopening the file keeps the offset and resumes where you stopped.
 - [ ] A file with only an external `Name.ja.srt` next to it picks that up.
 
+## v0.3.0 (Phase 2 dictionary)
+- [ ] Click words in a real episode: the popup finds whole words (conjugated verbs too) with meanings, reading and pitch.
+- [ ] Install the Japanese speech voice (Windows Settings → Time & language → Speech → Add voices → Japanese) and press 🔊 / R.
+- [ ] Optional: install and start VOICEVOX — 🔊 then uses it (credit shown in the tooltip).
+
 ## Per release (fill in as features land)
 - [ ] Open a Hi10P H.264 MKV, an HEVC 10-bit MKV and an MP4; each plays, seeks, fullscreens.
 - [ ] Embedded JP subs appear in time; Z/X offset moves them; English line shows under it.
