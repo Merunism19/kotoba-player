@@ -1,0 +1,103 @@
+/* Mining preview modal (docs/DESIGN.md section 4.4): centered tinted-glass dialog over a dimmed backdrop; Front | Back | controls. */
+.m-backdrop {
+  position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: 24px;
+  background: rgba(5, 6, 10, 0.64); animation: m-fade 0.16s ease-out;
+}
+@keyframes m-fade { from { opacity: 0; } }
+.m-modal {
+  display: flex; flex-direction: column; width: min(1180px, 100%); max-height: calc(100vh - 48px); border-radius: var(--r-panel);
+  background: var(--glass-video-strong); border: 1px solid var(--hairline-2); box-shadow: var(--shadow);
+  animation: m-pop 0.18s var(--ease-spring);
+}
+@keyframes m-pop { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+
+.m-head { flex: none; display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px 22px; border-bottom: 1px solid var(--hairline); }
+.m-title { display: flex; align-items: baseline; gap: 12px; margin-right: auto; min-width: 0; }
+.m-title h2 { margin: 0; font: 600 16px var(--font-ui); letter-spacing: 0.01em; }
+.m-word { font: 700 18px var(--font-head); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-seg { display: flex; padding: 3px; gap: 2px; border-radius: var(--r-pill); background: var(--fill); border: 1px solid var(--hairline); }
+.m-seg button {
+  height: 26px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: none; cursor: pointer;
+  font: 600 12px var(--font-ui); color: var(--text-2);
+}
+.m-seg button:hover { color: var(--text); background: var(--hover); }
+.m-seg button.on { color: var(--accent-ink); background: var(--accent); }
+
+.m-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 22px 20px; display: grid; gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 290px; align-items: start;
+  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.m-cards { display: contents; }
+.m-card { margin: 0; min-width: 0; }
+.m-card figcaption { margin: 0 0 8px 4px; font: 600 11px var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+/* The cards are drawn at their real size and zoomed down a little so a whole Back fits the dialog. */
+.m-body { --z: 0.8; }
+.m-frame {
+  display: block; width: 100%; border: 1px solid var(--hairline-2); border-radius: 18px; background: transparent; zoom: var(--z);
+  max-height: calc((100vh - 220px) / var(--z)); min-height: 200px; color-scheme: normal; user-select: text;
+}
+
+.m-side { display: grid; gap: 16px; align-content: start; min-width: 0; padding-top: 22px; }
+.m-field { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.m-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 0; font: 600 12px var(--font-ui); color: var(--text-2); }
+.m-src { font-style: normal; font-weight: 500; font-size: 11px; color: var(--text-3); }
+.m-src.none { color: var(--gold); }
+.m-field textarea, .m-field select {
+  width: 100%; border-radius: 12px; border: 1px solid var(--hairline-2); background: rgba(255, 255, 255, 0.05); color: var(--text);
+  font: 400 14px / 1.45 var(--font-ui); padding: 9px 12px; user-select: text; -webkit-user-select: text;
+}
+.m-field textarea { resize: vertical; min-height: 74px; max-height: 220px; }
+.m-field textarea::placeholder { color: var(--text-3); }
+.m-field select { height: 38px; padding: 0 10px; cursor: pointer; }
+.m-field select option { background: #161925; color: var(--text); }
+.m-field textarea:focus, .m-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.m-senses { gap: 6px; }
+.m-senses .m-label { margin-bottom: 2px; }
+.m-sense {
+  position: relative; display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 8px 10px; cursor: pointer;
+  border-radius: 12px; border: 1px solid var(--hairline); background: rgba(255, 255, 255, 0.03); font-size: 13px; line-height: 1.4; color: var(--text-2);
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.m-sense:hover { background: var(--hover); }
+.m-sense.on { color: var(--text); border-color: rgba(255, 122, 162, 0.35); background: rgba(255, 122, 162, 0.07); }
+.m-sense input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: inherit; }
+.m-box { width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; border: 1.5px solid var(--hairline-2); display: grid; place-items: center; }
+.m-sense.on .m-box { background: var(--accent); border-color: var(--accent); }
+.m-sense.on .m-box::after { content: ''; width: 9px; height: 5px; margin-top: -2px; border-left: 2px solid var(--accent-ink); border-bottom: 2px solid var(--accent-ink); transform: rotate(-45deg); }
+.m-sense:has(input:focus-visible) { box-shadow: var(--focus); }
+.m-sense:has(input:disabled) { cursor: default; }
+.m-sense-text { display: grid; gap: 1px; min-width: 0; }
+.m-sense-text small { font-size: 11px; color: var(--text-3); }
+
+.m-foot { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 22px 14px; border-top: 1px solid var(--hairline); }
+.m-spacer { flex: 1; }
+.m-hint { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.m-hint kbd { font: inherit; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--hairline-2); color: var(--text-2); }
+.m-dup {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 11px; border-radius: var(--r-pill);
+  font-size: 13px; color: var(--gold); background: rgba(255, 210, 122, 0.08); border: 1px solid rgba(255, 210, 122, 0.35);
+}
+.m-dup button {
+  height: 24px; padding: 0 11px; border: 0; border-radius: var(--r-pill); cursor: pointer; font: 600 12px var(--font-ui);
+  color: var(--gold); background: rgba(255, 210, 122, 0.14);
+}
+.m-dup button:hover { background: rgba(255, 210, 122, 0.24); }
+
+/* Narrower windows: same three columns, a slimmer controls column and smaller cards. */
+@media (max-width: 1140px) {
+  .m-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 250px; gap: 16px; padding: 16px 18px 18px; --z: 0.7; }
+}
+/* Under 900 px: everything stacked. */
+@media (max-width: 900px) {
+  .m-backdrop { padding: 10px; }
+  .m-modal { max-height: calc(100vh - 20px); }
+  .m-body { --z: 1; }
+  .m-body { grid-template-columns: minmax(0, 1fr); padding: 14px 14px 16px; }
+  .m-side { padding-top: 0; }
+  .m-frame { max-height: none; }
+  .m-head { padding-left: 16px; }
+  .m-foot { padding: 10px 14px 12px; flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .m-backdrop, .m-modal { animation: none; } }

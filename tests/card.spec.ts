@@ -1,16 +1,15 @@
-/** Renders the Anki templates in Chromium the way Anki does (field substitution, sections, furigana filter, sound buttons) into artifacts/shots/card-*.png. */
+/** Renders the Anki templates in Chromium with the app's own renderer (src/lib/anki-render.ts) into artifacts/shots/card-*.png. */
 import { test, expect, type Page } from '@playwright/test';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { cardDocument, renderCard, type Note } from '../src/lib/anki-render';
 
 const ROOT = process.cwd();
 const OUT = 'artifacts/shots';
 const WORK = resolve(ROOT, 'artifacts/card');
 const FIXTURE = resolve(ROOT, 'tests/fixtures/card/screenshot.png');
 const read = (p: string) => readFileSync(resolve(ROOT, p), 'utf8');
-
-type Note = Record<string, string>;
 
 const PITCH_SVG =
   '<svg viewBox="0 0 150 34" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -49,37 +48,15 @@ const CAMERA: Note = {
   Source: 'Sunset Journey · S01E03 · 14:02',
 };
 
-const PLAY = '<a class="replay-button soundLink" href="#"><svg class="playImage" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29"/><path d="M56.502,32.301l-37.502,20.101l0.329,-40.804l37.173,20.703Z" transform="scale(.5) translate(32 32)"/></svg></a>';
-
-/** Anki's furigana filter. */
-const furigana = (s: string) => s.replace(/ ?([^ >]+?)\[(.+?)\]/g, '<ruby><rb>$1</rb><rt>$2</rt></ruby>');
-
-/** Renders exactly the template syntax we use: {{#F}}..{{/F}}, {{^F}}..{{/F}}, {{furigana:F}}, {{F}}, {{FrontSide}}. */
-function render(tpl: string, note: Note, front = ''): string {
-  let out = tpl;
-  const section = /\{\{([#^])([A-Za-z]+)\}\}((?:(?!\{\{[#^]).)*?)\{\{\/\2\}\}/s;
-  for (let m = section.exec(out); m; m = section.exec(out)) {
-    const filled = (note[m[2]] ?? '').trim() !== '';
-    out = out.slice(0, m.index) + ((m[1] === '#') === filled ? m[3] : '') + out.slice(m.index + m[0].length);
-  }
-  out = out.replace(/\{\{FrontSide\}\}/g, front);
-  out = out.replace(/\{\{furigana:([A-Za-z]+)\}\}/g, (_, f) => furigana(note[f] ?? ''));
-  out = out.replace(/\{\{([A-Za-z]+)\}\}/g, (_, f) => note[f] ?? '');
-  out = out.replace(/\[sound:[^\]]+\]/g, PLAY);
-  if (/\{\{|\}\}/.test(out)) throw new Error('unrendered template syntax: ' + out.match(/\{\{[^}]*\}\}/)?.[0]);
-  return out;
-}
-
 function pageHtml(body: string, night: boolean): string {
-  const cls = night ? 'card nightMode night_mode' : 'card';
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${read('anki/style.css')}</style></head><body class="${cls}"><div class="card">${body}</div></body></html>`;
+  return cardDocument(body, read('anki/style.css'), night);
 }
 
 async function show(page: Page, tpl: 'front' | 'back', note: Note, night: boolean, name: string) {
   mkdirSync(WORK, { recursive: true });
   copyFileSync(FIXTURE, resolve(WORK, 'kotoba_shot.png'));
-  const front = render(read('anki/front.html'), note);
-  const html = tpl === 'front' ? front : render(read('anki/back.html'), note, front);
+  const card = renderCard({ front: read('anki/front.html'), back: read('anki/back.html') }, note);
+  const html = card[tpl];
   const file = resolve(WORK, `${name}.html`);
   writeFileSync(file, pageHtml(html, night));
   await page.goto(pathToFileURL(file).href);
