@@ -61,8 +61,8 @@ function CardFrame({ html, night, label }: { html: string; night: boolean; label
 
 const SOURCE_LABEL: Record<CardDraft['translationSource'], string> = {
   subtitles: 'from English subtitles',
-  deepl: 'from DeepL',
-  ollama: 'from a local model (Ollama)',
+  deepl: 'machine translation (DeepL)',
+  ollama: 'machine translation (Ollama, local)',
   none: 'none — type one',
 };
 
@@ -191,6 +191,9 @@ function Modal({ m }: { m: MiningState }) {
                 placeholder="Type a translation for this line"
                 onChange={(e) => setTranslation(e.target.value)}
               />
+              {(draft.translationSource === 'deepl' || draft.translationSource === 'ollama') && (
+                <span className="m-src-note">Machine translations can be wrong. Check it before sending.</span>
+              )}
             </label>
 
             <label className="m-field">

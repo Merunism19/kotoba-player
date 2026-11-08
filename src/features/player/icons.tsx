@@ -38,6 +38,10 @@ export const IconAlert = () => <Svg size={18}><circle cx="12" cy="12" r="9" /><p
 export const IconClose = () => <Svg size={16}><path d="M6 6l12 12M18 6L6 18" /></Svg>;
 export const IconSpeaker = () => <Svg size={19}><path d="M11 5L6 9H3v6h3l5 4V5z" /><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13" /></Svg>;
 export const IconPlus = () => <Svg size={16}><path d="M12 5v14M5 12h14" /></Svg>;
+export const IconGear = () => <Svg size={19}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" /></Svg>;
+export const IconList = () => <Svg size={19}><path d="M4 6h16M4 12h10M4 18h13" /></Svg>;
+export const IconSearch = () => <Svg size={15}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></Svg>;
+export const IconSync = () => <Svg size={15}><path d="M4 12a8 8 0 0113.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 01-13.7 5.6L4 15.5M4 20v-4.5h4.5" /></Svg>;
 export const IconChevron = ({ dir }: { dir: 'left' | 'right' | 'up' | 'down' }) => (
   <Svg size={14}>
     <path d={{ left: 'M15 18l-6-6 6-6', right: 'M9 18l6-6-6-6', up: 'M18 15l-6-6-6 6', down: 'M6 9l6 6 6-6' }[dir]} />

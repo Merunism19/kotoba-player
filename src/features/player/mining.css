@@ -43,6 +43,8 @@
 .m-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 0; font: 600 12px var(--font-ui); color: var(--text-2); }
 .m-src { font-style: normal; font-weight: 500; font-size: 11px; color: var(--text-3); }
 .m-src.none { color: var(--gold); }
+.m-src.deepl, .m-src.ollama { color: var(--accent-2); }
+.m-src-note { font-size: 11.5px; line-height: 1.4; color: var(--text-3); }
 .m-field textarea, .m-field select {
   width: 100%; border-radius: 12px; border: 1px solid var(--hairline-2); background: rgba(255, 255, 255, 0.05); color: var(--text);
   font: 400 14px / 1.45 var(--font-ui); padding: 9px 12px; user-select: text; -webkit-user-select: text;
@@ -61,7 +63,7 @@
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .m-sense:hover { background: var(--hover); }
-.m-sense.on { color: var(--text); border-color: rgba(255, 122, 162, 0.35); background: rgba(255, 122, 162, 0.07); }
+.m-sense.on { color: var(--text); border-color: rgb(var(--accent-rgb) / 0.35); background: rgb(var(--accent-rgb) / 0.07); }
 .m-sense input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: inherit; }
 .m-box { width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; border: 1.5px solid var(--hairline-2); display: grid; place-items: center; }
 .m-sense.on .m-box { background: var(--accent); border-color: var(--accent); }

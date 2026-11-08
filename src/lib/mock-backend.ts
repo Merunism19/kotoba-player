@@ -1,10 +1,12 @@
 /**
  * Fake backend for screenshots: deterministic "Sunset Journey - 07" with the 7 sample lines, English, hand-made word units, 3 recents,
  * a mock dictionary (mock-dict.ts) and Anki mining (cards from mock-card.ts). Params: anki=off (Anki unreachable), dup=1 (the word is
- * already in Anki), notrans=1 (no English line), mined=1,3 (cue ids already mined), adderr=1 (addCard fails). Calls are recorded in window.__mock.
+ * already in Anki), notrans=1 (no English line), trsrc=deepl|ollama (translation source of drafts), mined=1,3 (cue ids already mined), adderr=1 (addCard fails),
+ * deepl=1 (a DeepL key is stored), unsynced=1 (Japanese lines are 2.88 s late until synced), models=0 (Ollama not running). Calls are recorded in window.__mock.
  */
-import { setBackend, type Backend, type MineRequest, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
+import { setBackend, type Backend, type MineRequest, type Settings, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
 import { mockParams } from './env';
+import { basename } from './format';
 import { mockLookup, mockWordAudio } from './mock-dict';
 import { mockDraft } from './mock-card';
 
@@ -38,10 +40,17 @@ const tracks: Track[] = [
   { id: 3, kind: 'sub', codec: 'subrip', lang: 'jpn', title: 'Japanese (SRT)', external: true, path: 'Sunset Journey - 07.ja.srt' },
 ];
 
-const jpCues: Cue[] = [
+const baseJpCues: Cue[] = [
   { id: 0, startMs: 500, endMs: 6000, text: '第七話「夕焼けの旅」', kind: 'sign' },
   ...LINES.map(([a, b, jp], i): Cue => ({ id: i + 1, startMs: a * 1000, endMs: b * 1000, text: jp, kind: 'dialogue' })),
 ];
+/** Japanese lines as the "release" has them: 2.88 s late when unsynced=1 until syncSubtitles runs. */
+const UNSYNCED_MS = mockParams.has('unsynced') ? 2880 : 0;
+let lateMs = UNSYNCED_MS;
+let jpSubId = 1;
+let trackList = [...tracks];
+const lateCues = (): Cue[] => baseJpCues.map((c) => (c.kind === 'dialogue' ? { ...c, startMs: c.startMs + lateMs, endMs: c.endMs + lateMs } : c));
+const jpCues = baseJpCues; // ids and text (timing comes from lateCues)
 const enCues: Cue[] = LINES.map(([a, b, , en], i): Cue => ({ id: i, startMs: a * 1000, endMs: b * 1000, text: en, kind: 'dialogue' }));
 
 const MOCK_TITLE = 'Sunset Journey \u2013 07';
@@ -71,8 +80,23 @@ function unitsFor(text: string): WordUnit[] {
 const DECKS = ['Kotoba Mining', 'Japanese::Anime'];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Mining calls the mock received, for tests (window.__mock). */
-const mockLog: { drafts: MineRequest[]; added: { draftId: string; edits: { sentenceTranslation?: string; deck?: string } }[] } = { drafts: [], added: [] };
+const mockLog: {
+  drafts: MineRequest[];
+  added: { draftId: string; edits: { sentenceTranslation?: string; deck?: string } }[];
+  settingsSaved: Settings[];
+  deeplKeys: (string | null)[];
+  subFiles: string[];
+  syncs: { subId: number; refSubId: number }[];
+  resets: number[];
+} = { drafts: [], added: [], settingsSaved: [], deeplKeys: [], subFiles: [], syncs: [], resets: [] };
 (window as unknown as { __mock: typeof mockLog }).__mock = mockLog;
+
+let hasDeeplKey = mockParams.get('deepl') === '1';
+let stored: Settings = {
+  ankiDeck: 'Kotoba Mining', ankiTags: ['anime'], useDeepl: true, useOllama: true, ollamaModel: null,
+  enMode: 'blur', pauseOnHover: true, subScale: Number(mockParams.get('scale') ?? 1), offsetStepMs: 100,
+  accent: (mockParams.get('accent') as Settings['accent'] | null) ?? 'sakura',
+};
 
 const backend: Backend = {
   async prepareMedia(path) {
@@ -81,8 +105,8 @@ const backend: Backend = {
       path,
       title: MOCK_TITLE,
       durationMs: 30_000,
-      tracks,
-      jpSubId: 1,
+      tracks: trackList,
+      jpSubId,
       enSubId: 2,
       resumeMs: 0,
       offsetMs,
@@ -91,7 +115,7 @@ const backend: Backend = {
     return m;
   },
   async getCues(_path, subId) {
-    return subId === 1 ? jpCues : subId === 2 ? enCues : [];
+    return subId === 1 || subId === 4 ? lateCues() : subId === 2 ? enCues : [];
   },
   async alignCues() {
     return Object.fromEntries(LINES.map((_l, i) => [i + 1, [i]]));
@@ -125,6 +149,7 @@ const backend: Backend = {
       req,
       units: unitsFor(cue.text),
       translation,
+      source: (mockParams.get('trsrc') as 'deepl' | 'ollama' | null) ?? undefined,
       title: MOCK_TITLE,
       id: `mock-draft-${mockLog.drafts.length}`,
       duplicates: mockParams.has('dup') ? [1700000000000] : [],
@@ -139,28 +164,52 @@ const backend: Backend = {
     return 1700000000001 + mockLog.added.length;
   },
   async showInAnki() {},
-  // Phase 4 stubs; realistic mocks come with the Phase 4 UI.
-  async addSubtitleFile() {
-    throw new Error('mock: addSubtitleFile not implemented yet');
+  async addSubtitleFile(path, file) {
+    await sleep(150);
+    mockLog.subFiles.push(file);
+    const name = basename(file);
+    if (!trackList.some((t) => t.id === 4)) {
+      trackList = [...trackList, { id: 4, kind: 'sub', codec: 'subrip', lang: 'jpn', title: name === 'other-release.ja.srt' ? name : 'other-release.ja.srt', external: true, path: file }];
+    }
+    jpSubId = 4;
+    return { ...(await backend.prepareMedia(path)), jpSubId: 4 };
   },
-  async syncSubtitles() {
-    return { medianShiftMs: 0, minShiftMs: 0, maxShiftMs: 0, changed: 0 };
+  async syncSubtitles(_path, subId, refSubId) {
+    await sleep(400);
+    mockLog.syncs.push({ subId, refSubId });
+    lateMs = 0;
+    return { medianShiftMs: -2880, minShiftMs: -2880, maxShiftMs: -2880, changed: 7 };
   },
-  async resetSync() {},
+  async resetSync(_path, subId) {
+    mockLog.resets.push(subId);
+    lateMs = UNSYNCED_MS;
+  },
   async getSettings() {
     return {
-      settings: {
-        ankiDeck: 'Kotoba Mining', ankiTags: [], useDeepl: true, useOllama: true, ollamaModel: null,
-        enMode: 'blur', pauseOnHover: true, subScale: 1, offsetStepMs: 100, accent: 'sakura',
-      },
-      hasDeeplKey: false, ollamaModels: [], japaneseVoice: null, voicevox: false, attribution: null,
+      settings: stored,
+      hasDeeplKey,
+      ollamaModels: mockParams.get('models') === '0' ? [] : ['qwen3:8b'],
+      japaneseVoice: mockParams.has('voice') ? 'Microsoft Haruka' : null,
+      voicevox: mockParams.has('voicevox'),
+      attribution: 'Dictionary data: JMdict/EDICT, © the Electronic Dictionary Research and Development Group, CC BY-SA 4.0. Pitch accent: Kanjium.',
     };
   },
   async saveSettings(s) {
-    return s;
+    mockLog.settingsSaved.push(s);
+    stored = {
+      ...s,
+      subScale: Math.min(1.6, Math.max(0.7, s.subScale)),
+      offsetStepMs: Math.min(1000, Math.max(10, Math.round(s.offsetStepMs))),
+      ankiTags: s.ankiTags.map((t) => t.replace(/\s+/g, '')).filter(Boolean),
+    };
+    return stored;
   },
-  async setDeeplKey() {
-    return null;
+  async setDeeplKey(key) {
+    await sleep(350);
+    mockLog.deeplKeys.push(key);
+    if (key === 'bad') throw new Error('DeepL rejected this key (403). Check that you copied the whole key.');
+    hasDeeplKey = key !== null;
+    return key === null ? null : '12,345 / 500,000 characters used this month';
   },
 };
 

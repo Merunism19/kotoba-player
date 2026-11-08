@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import Home from '../features/home/Home';
 import PlayerScreen from '../features/player/PlayerScreen';
 import Toasts from '../features/player/Toasts';
+import SettingsPanel from '../features/settings/SettingsPanel';
+import { closeSettings, openSettings } from '../features/settings/settings';
 import { startApp } from '../features/player/session';
 import { isMock, mockParams } from '../lib/env';
 import MockScene from '../lib/MockScene';
@@ -23,11 +25,25 @@ export default function App() {
     };
   }, []);
 
+  // Ctrl+, opens (or closes) Settings from anywhere, also while typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === ',') {
+        e.preventDefault();
+        if (useApp.getState().settingsOpen) closeSettings();
+        else openSettings();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <>
       {isMock && screen === 'player' && <MockScene bright={mockParams.has('bright')} />}
       {screen === 'home' ? <Home /> : <PlayerScreen />}
       {dragging && screen === 'player' && <div className="drop-veil">Drop to play</div>}
+      <SettingsPanel />
       <Toasts />
     </>
   );
