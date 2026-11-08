@@ -1,8 +1,9 @@
-/** Player screen: transparent stage over mpv's video with auto-hiding top/bottom bars, subtitle layer, popup and hotkeys. */
+/** Player screen: transparent stage over mpv's video with auto-hiding top/bottom bars, subtitle layer, word popup, mining preview and hotkeys. */
 import { useEffect, useRef, useState } from 'react';
 import { installHotkeys } from '../../lib/hotkeys';
 import { useApp } from '../../app/store';
 import Controls from './Controls';
+import MiningPreview from './MiningPreview';
 import OffsetBadge from './OffsetBadge';
 import SubtitleLayer from './SubtitleLayer';
 import TrackPicker from './TrackPicker';
@@ -93,6 +94,7 @@ export default function PlayerScreen() {
       {loading && <div className="p-loading">Opening…</div>}
       <SubtitleLayer />
       <WordPopup />
+      <MiningPreview />
       <Controls />
     </div>
   );
