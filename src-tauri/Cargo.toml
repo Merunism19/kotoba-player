@@ -1,6 +1,6 @@
 [package]
 name = "kotoba-player"
-version = "0.2.0"
+version = "0.3.0"
 description = "Anime video player with click-to-look-up Japanese dictionary and Anki mining"
 authors = ["merunism"]
 edition = "2024"

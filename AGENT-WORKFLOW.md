@@ -183,7 +183,9 @@ it by planting the mistake once. Cheap guards that paid off in practice:
 
 - **Text encoding:** every source file valid UTF-8, with no stray control characters or CR bytes
   (editors, shells and scripted edits on some OSes rewrite bytes silently; on Windows a script's
-  plain text write turns LF into CRLF). Prefer the agent's file-edit tool to scripted replacements.
+  plain text write turns LF into CRLF). Prefer the agent's file-edit tool to scripted replacements,
+  and never script edits of code that contains escapes (backslash-n, backslash-r-backslash-n, regexes):
+  one language's string layer silently decodes them for the other.
 - **Hard rules tested at the real entry point,** not only the inner API: an invariant can hold in the
   core and still break where outside input is loaded (a file read that translates newlines).
 - **Resource syntax** (e.g. unescaped quotes in UI string files) — seconds instead of a failed
@@ -383,3 +385,10 @@ Changelog (newest last; each line: what changed — evidence):
   helpers (parser ~124k tokens, tokenizer ~162k, UI + screenshot harness ~203k) work in worktrees cut from that
   commit while the orchestrator wrote the core against the same contract; all three merged with only a
   Cargo.lock conflict (kept ours, cargo re-added entries) and the real app worked on the first probe.
+- 2026-11-08: Stacked PRs and escapes. A ship script's "version already above main = already bumped" rule
+  skipped the bump on a stacked branch (it inherited the parent's bump), and its memory check accepted a
+  version merely mentioned in the handoff ("on top of v0.2.0"); fixed with a per-branch bump record and a
+  "current state starts with the version" rule, proven by planting. Separately, scripted (Python heredoc)
+  edits turned backslash escapes inside JS/Rust strings into real line breaks three times in one session (a
+  syntax error, a test hanging on a header loop, and this very changelog line) — code or text with escapes
+  is now edited only with the edit tool.
