@@ -11,11 +11,13 @@ export interface Toast {
   kind: 'error' | 'info';
 }
 
-/** The placeholder dictionary popup, anchored above a clicked word. */
+/** The dictionary popup, anchored to a clicked word. */
 export interface PopupState {
   unit: WordUnit;
-  /** Viewport position of the clicked word: center x, top y, width. */
-  anchor: { x: number; top: number; width: number };
+  /** The subtitle line the word was clicked in (lookup input together with `unit.start`). */
+  line: string;
+  /** Viewport position of the clicked word: center x, top y, bottom y, width. */
+  anchor: { x: number; top: number; bottom: number; width: number };
   /** Resume playback when the popup closes. */
   resume: boolean;
 }

@@ -1,6 +1,7 @@
-/** Fake backend for screenshots: deterministic "Sunset Journey - 07" with the 7 sample lines, English, hand-made word units and 3 recents. */
+/** Fake backend for screenshots: deterministic "Sunset Journey - 07" with the 7 sample lines, English, hand-made word units, 3 recents and a mock dictionary (mock-dict.ts). */
 import { setBackend, type Backend, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
 import { mockParams } from './env';
+import { mockLookup, mockWordAudio } from './mock-dict';
 
 const LINES: [number, number, string, string][] = [
   [1.0, 4.0, 'もう諦めないって決めたんだ。', "I decided I'm not giving up anymore."],
@@ -96,13 +97,8 @@ const backend: Backend = {
   async startupFiles() {
     return mockParams.has('open') ? ['C:/Anime/Sunset Journey - 07.mkv'] : [];
   },
-  // Phase 2 stubs; realistic mock entries come with the popup UI.
-  async lookupAt() {
-    return [];
-  },
-  async wordAudio() {
-    return null;
-  },
+  lookupAt: mockLookup,
+  wordAudio: mockWordAudio,
 };
 
 export function installMockBackend(): void {
