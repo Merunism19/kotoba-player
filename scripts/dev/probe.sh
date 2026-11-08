@@ -23,11 +23,11 @@ done
 ( WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=$CDP_PORT" ./target/debug/kotoba-player.exe "$F" > "$OUT/$TAG-app.log" 2>&1
   echo "APP_EXIT=$?" >> "$OUT/$TAG-app.log" ) &
 for i in $(seq 1 20); do curl -s "http://127.0.0.1:$CDP_PORT/json" >/dev/null && break; sleep 1; done
-for i in $(seq 1 30); do [ "$($CDP "!!document.querySelector('.topbar')" 2>/dev/null)" = "true" ] && break; sleep 0.5; done
+for i in $(seq 1 30); do [ "$($CDP "!!document.querySelector('.p-top')" 2>/dev/null)" = "true" ] && break; sleep 0.5; done
 
 I="const I = window.__TAURI_INTERNALS__.invoke; const gp = (n) => I('plugin:libmpv|get_property', {name:n, format:'string', windowLabel:'main'}).catch(e=>'ERR '+e);"
 $CDP "(async () => { $I return { args: await I('startup_files'), path: await gp('path') }; })()"
-$CDP "(async () => { $I await I('plugin:libmpv|command', {name:'seek', args:[5,'absolute'], windowLabel:'main'}); await new Promise(r => setTimeout(r, 1500)); return { top: document.querySelector('.topbar')?.innerText.replace(/\n/g,' | '), jp: document.querySelector('.jp-line')?.innerText, en: document.querySelector('.en-line')?.innerText, fps: await gp('estimated-vf-fps'), drops: await gp('frame-drop-count') }; })()"
+$CDP "(async () => { $I await I('plugin:libmpv|command', {name:'seek', args:[5,'absolute'], windowLabel:'main'}); await new Promise(r => setTimeout(r, 1500)); return { title: document.querySelector('.p-title')?.innerText, jp: document.querySelector('.p-jp')?.innerText, words: [...document.querySelectorAll('.p-jp .unit.word')].map(e => e.innerText).join(' | '), en: document.querySelector('.p-en')?.innerText, toasts: [...document.querySelectorAll('.toast-msg')].map(e => e.innerText), sid: await gp('sid'), sids: await gp('track-list/count'), fps: await gp('estimated-vf-fps'), drops: await gp('frame-drop-count') }; })()"
 powershell -NoProfile -ExecutionPolicy Bypass -File "$REPO/scripts/dev/window-shot.ps1" -Out "$(cygpath -w "$OUT/$TAG-window.png")"
 FRAME="$(cygpath -m "$OUT/$TAG-frame.webp")"
 $CDP "(async () => { $I return I('plugin:libmpv|command', {name:'screenshot-to-file', args:['$FRAME','video'], windowLabel:'main'}).then(()=>'frame saved').catch(e=>'FRAME ERR '+e); })()"

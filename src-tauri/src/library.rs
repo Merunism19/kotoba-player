@@ -35,7 +35,8 @@ impl FileState {
     /// Watched to the end (credits count as the end): within 90 s of the end, or past 95 %.
     pub fn finished(&self) -> bool {
         self.duration_ms > 0
-            && (self.position_ms + 90_000 >= self.duration_ms || self.position_ms * 100 >= self.duration_ms * 95)
+            && (self.position_ms + 90_000 >= self.duration_ms
+                || self.position_ms * 100 >= self.duration_ms * 95)
     }
 
     /// Where to resume, if anywhere (not near the start, not finished).
@@ -60,8 +61,12 @@ impl Library {
 
     /// Unfinished files, most recently opened first, at most `n`.
     pub fn continue_watching(&self, n: usize) -> Vec<(&String, &FileState)> {
-        let mut v: Vec<_> = self.files.iter().filter(|(_, s)| s.position_ms > 0 && !s.finished()).collect();
-        v.sort_by(|a, b| b.1.last_opened_ms.cmp(&a.1.last_opened_ms));
+        let mut v: Vec<_> = self
+            .files
+            .iter()
+            .filter(|(_, s)| s.position_ms > 0 && !s.finished())
+            .collect();
+        v.sort_by_key(|(_, s)| std::cmp::Reverse(s.last_opened_ms));
         v.truncate(n);
         v
     }
@@ -70,7 +75,11 @@ impl Library {
         if self.files.len() <= MAX_FILES {
             return;
         }
-        let mut by_age: Vec<(String, u64)> = self.files.iter().map(|(k, v)| (k.clone(), v.last_opened_ms)).collect();
+        let mut by_age: Vec<(String, u64)> = self
+            .files
+            .iter()
+            .map(|(k, v)| (k.clone(), v.last_opened_ms))
+            .collect();
         by_age.sort_by_key(|(_, t)| *t);
         for (k, _) in by_age.into_iter().take(self.files.len() - MAX_FILES) {
             self.files.remove(&k);
@@ -80,7 +89,10 @@ impl Library {
 
 /// Current Unix time in milliseconds.
 pub fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// Unix milliseconds as an ISO-8601 UTC timestamp, e.g. `2026-11-08T20:48:57Z`.
@@ -97,12 +109,20 @@ pub fn iso8601(ms: u64) -> String {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = yoe + era * 400 + i64::from(m <= 2);
-    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 /// Display title from a file name: drops the extension, release-group brackets and dots/underscores.
 pub fn title_from_path(path: &str) -> String {
-    let name = std::path::Path::new(path).file_stem().and_then(|s| s.to_str()).unwrap_or(path);
+    let name = std::path::Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(path);
     let mut out = String::new();
     let mut depth = 0;
     for c in name.chars() {
@@ -124,8 +144,16 @@ mod tests {
 
     #[test]
     fn resume_rules() {
-        let s = |p, d| FileState { position_ms: p, duration_ms: d, ..Default::default() };
-        assert_eq!(s(5_000, 1_440_000).resume_ms(), None, "too close to the start");
+        let s = |p, d| FileState {
+            position_ms: p,
+            duration_ms: d,
+            ..Default::default()
+        };
+        assert_eq!(
+            s(5_000, 1_440_000).resume_ms(),
+            None,
+            "too close to the start"
+        );
         assert_eq!(s(600_000, 1_440_000).resume_ms(), Some(600_000));
         assert_eq!(s(1_380_000, 1_440_000).resume_ms(), None, "in the credits");
         assert!(s(1_400_000, 1_440_000).finished());
@@ -135,13 +163,22 @@ mod tests {
     #[test]
     fn continue_watching_order_and_filter() {
         let mut lib = Library::default();
-        for (p, pos, t) in [("a", 600_000, 1), ("b", 1_430_000, 3), ("c", 300_000, 2), ("d", 0, 4)] {
+        for (p, pos, t) in [
+            ("a", 600_000, 1),
+            ("b", 1_430_000, 3),
+            ("c", 300_000, 2),
+            ("d", 0, 4),
+        ] {
             let e = lib.entry(p);
             e.position_ms = pos;
             e.duration_ms = 1_440_000;
             e.last_opened_ms = t;
         }
-        let keys: Vec<_> = lib.continue_watching(10).into_iter().map(|(k, _)| k.as_str()).collect();
+        let keys: Vec<_> = lib
+            .continue_watching(10)
+            .into_iter()
+            .map(|(k, _)| k.as_str())
+            .collect();
         assert_eq!(keys, vec!["c", "a"]);
     }
 
@@ -165,14 +202,21 @@ mod tests {
 
     #[test]
     fn titles() {
-        assert_eq!(title_from_path(r"D:\anime\[SubsPlease] Sousou no Frieren - 07 (1080p) [ABCD1234].mkv"), "Sousou no Frieren - 07");
-        assert_eq!(title_from_path("/x/Some_Show.S01E07.mkv"), "Some Show S01E07");
+        assert_eq!(
+            title_from_path(r"D:\anime\[SubsPlease] Sousou no Frieren - 07 (1080p) [ABCD1234].mkv"),
+            "Sousou no Frieren - 07"
+        );
+        assert_eq!(
+            title_from_path("/x/Some_Show.S01E07.mkv"),
+            "Some Show S01E07"
+        );
         assert_eq!(title_from_path("[only brackets].mkv"), "[only brackets]");
     }
 
     #[test]
     fn state_json_is_tolerant() {
-        let s: FileState = serde_json::from_str(r#"{"offsetMs": -300, "unknownField": 1}"#).unwrap();
+        let s: FileState =
+            serde_json::from_str(r#"{"offsetMs": -300, "unknownField": 1}"#).unwrap();
         assert_eq!(s.offset_ms, -300);
         assert_eq!(s.position_ms, 0);
     }

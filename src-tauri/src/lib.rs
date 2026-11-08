@@ -21,10 +21,14 @@ pub fn run() {
             if let Ok(r) = paths.resource_dir() {
                 tool_dirs.push(r.join("lib"));
             }
-            if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())) {
+            if let Some(dir) = std::env::current_exe()
+                .ok()
+                .and_then(|e| e.parent().map(|p| p.to_path_buf()))
+            {
                 tool_dirs.push(dir.join("lib"));
             }
-            let core = commands::Core::new(&tool_dirs, paths.app_data_dir()?, paths.app_cache_dir()?);
+            let core =
+                commands::Core::new(&tool_dirs, paths.app_data_dir()?, paths.app_cache_dir()?);
             let core = Arc::new(core);
             // Load the dictionary in the background so the first hover is instant.
             let warm = core.clone();

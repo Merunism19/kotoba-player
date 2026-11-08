@@ -7,7 +7,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// Whether a store belongs in a future backup/export.
+/// Whether a store belongs in a future backup/export (read by the export feature; tests check every store has one).
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Backup {
     /// User data worth keeping (positions, choices).
@@ -23,6 +24,7 @@ pub enum Store {
 
 impl Store {
     /// All stores, for backup/export and tests.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const ALL: &'static [Store] = &[Store::Library];
 
     /// File name inside the app data directory.
@@ -33,6 +35,7 @@ impl Store {
     }
 
     /// Backup decision (and why).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn backup(self) -> Backup {
         match self {
             // Losing it loses every resume point and per-episode subtitle sync.
@@ -49,11 +52,16 @@ impl Store {
 /// Read a store; a missing or unreadable file gives the default (a corrupt file is kept aside as `.bad`).
 pub fn load<T: DeserializeOwned + Default>(data_dir: &Path, store: Store) -> T {
     let path = store.path(data_dir);
-    let Ok(bytes) = std::fs::read(&path) else { return T::default() };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return T::default();
+    };
     match serde_json::from_slice(&bytes) {
         Ok(v) => v,
         Err(e) => {
-            log_warn(&format!("{} is unreadable ({e}); starting fresh and keeping it as .bad", path.display()));
+            log_warn(&format!(
+                "{} is unreadable ({e}); starting fresh and keeping it as .bad",
+                path.display()
+            ));
             let _ = std::fs::rename(&path, path.with_extension("json.bad"));
             T::default()
         }

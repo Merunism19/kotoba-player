@@ -7,6 +7,8 @@ const argv = process.argv.slice(2);
 const DRY = argv.includes('--dry-run');
 const RELEASE = argv.includes('--release');
 const LOCAL_GATE = argv.includes('--local-gate');
+// Stop after the gate with the PR open: merging is left to the owner (their review), e.g. for stacked PRs.
+const NO_MERGE = argv.includes('--no-merge');
 const bumpIdx = argv.indexOf('--bump');
 const BUMP = bumpIdx >= 0 ? argv[bumpIdx + 1] : 'patch';
 if (!['patch', 'minor', 'none'].includes(BUMP)) die(`--bump must be patch|minor|none (got ${BUMP})`);
@@ -211,6 +213,10 @@ if (!mergedAlready) {
     else die(`gate not satisfied (checks ${verdict}); use --local-gate if hosted CI is unavailable`);
   }
 
+  if (NO_MERGE) {
+    say(`SHIP READY: v${readVersions().pkg} ${pr.url} (gate passed; merge left to the owner)`);
+    process.exit(0);
+  }
   // ---- merge
   step('merge');
   must(mut('gh', ['pr', 'merge', String(pr.number), '--squash', '--delete-branch'], { retry: true }), 'gh pr merge failed');

@@ -53,7 +53,9 @@ section 12 and leaves the file better than it found it. Version and history are 
    (or alongside your own edits), give each its own git worktree and bring its files over after review.
    A new worktree may be cut from the default branch, not your working branch: commit what the helper
    needs on a branch it will start from, name the expected base commit in the brief, and have it check
-   `git log -1` before its first edit.
+   `git log -1` before its first edit. Contract first: commit the shared types/interfaces (and skeleton
+   modules) the helpers build against, then cut every worktree from that commit. Lockfile conflicts when
+   merging parallel branches: keep one side and let the package tool re-add the missing entries.
 5. **While it works**, do only things that don't touch its files or the build lock: plan the next
    brief, write release notes, update docs.
 6. **Review** (section 5).
@@ -377,3 +379,7 @@ Changelog (newest last; each line: what changed — evidence):
   and a leftover WebView2 process reused by the next launch. Also seen again: a piped tool check printed
   blanks instead of "missing", and the PATH had a 2013 ffmpeg shadowing a current one — pin and bundle
   external binaries rather than trusting PATH.
+- 2026-11-08: Contract-first parallel helpers — a committed UI↔core contract (types + skeleton crates) let three
+  helpers (parser ~124k tokens, tokenizer ~162k, UI + screenshot harness ~203k) work in worktrees cut from that
+  commit while the orchestrator wrote the core against the same contract; all three merged with only a
+  Cargo.lock conflict (kept ours, cargo re-added entries) and the real app worked on the first probe.

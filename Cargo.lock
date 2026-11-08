@@ -2003,11 +2003,13 @@ dependencies = [
 
 [[package]]
 name = "kotoba-player"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
+ "jptext",
  "serde",
  "serde_json",
+ "subtitles",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

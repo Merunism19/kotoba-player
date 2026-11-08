@@ -50,8 +50,6 @@ pub enum MediaError {
     Probe(String),
     #[error("Couldn't read the subtitles: {0}")]
     Extract(String),
-    #[error("{0}")]
-    Unsupported(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
@@ -86,7 +84,8 @@ const SUB_EXTS: &[&str] = &["ass", "ssa", "srt", "vtt"];
 
 /// Parse `ffprobe -print_format json -show_format -show_streams` output into tracks.
 pub fn parse_ffprobe(json: &str) -> Result<Probe, MediaError> {
-    let out: FfprobeOut = serde_json::from_str(json).map_err(|e| MediaError::Probe(e.to_string()))?;
+    let out: FfprobeOut =
+        serde_json::from_str(json).map_err(|e| MediaError::Probe(e.to_string()))?;
     let (mut v, mut a, mut s) = (0u32, 0u32, 0u32);
     let mut tracks = Vec::new();
     for st in out.streams {
@@ -119,7 +118,12 @@ pub fn parse_ffprobe(json: &str) -> Result<Probe, MediaError> {
             codec: st.codec_name.unwrap_or_else(|| "unknown".into()),
             lang: tag("language"),
             title: tag("title"),
-            is_default: st.disposition.as_ref().and_then(|d| d.get("default")).copied() == Some(1),
+            is_default: st
+                .disposition
+                .as_ref()
+                .and_then(|d| d.get("default"))
+                .copied()
+                == Some(1),
             external: false,
             path: None,
             stream_index: Some(st.index),
@@ -131,7 +135,10 @@ pub fn parse_ffprobe(json: &str) -> Result<Probe, MediaError> {
         .and_then(|d| d.parse::<f64>().ok())
         .filter(|d| d.is_finite() && *d > 0.0)
         .map(|d| (d * 1000.0).round() as u64);
-    Ok(Probe { duration_ms, tracks })
+    Ok(Probe {
+        duration_ms,
+        tracks,
+    })
 }
 
 /// Language guessed from a subtitle file name like `Ep01.ja.ass` or `Ep01.English.srt`.
@@ -151,10 +158,13 @@ pub fn lang_from_filename(stem_suffix: &str) -> Option<String> {
 /// Subtitle files next to `video` whose name starts with the video's file stem, as external tracks
 /// numbered after `first_id`. Only reads the directory; never writes there.
 pub fn external_subs(video: &Path, first_id: u32) -> Vec<Track> {
-    let (Some(dir), Some(stem)) = (video.parent(), video.file_stem().and_then(|s| s.to_str())) else {
+    let (Some(dir), Some(stem)) = (video.parent(), video.file_stem().and_then(|s| s.to_str()))
+    else {
         return Vec::new();
     };
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
     let mut found: Vec<PathBuf> = entries
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
@@ -162,7 +172,10 @@ pub fn external_subs(video: &Path, first_id: u32) -> Vec<Track> {
                 .extension()
                 .and_then(|e| e.to_str())
                 .is_some_and(|e| SUB_EXTS.iter().any(|x| x.eq_ignore_ascii_case(e)));
-            let name_ok = p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(stem));
+            let name_ok = p
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(stem));
             ext_ok && name_ok && p.is_file()
         })
         .collect();
@@ -171,7 +184,11 @@ pub fn external_subs(video: &Path, first_id: u32) -> Vec<Track> {
         .into_iter()
         .enumerate()
         .map(|(i, p)| {
-            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+            let ext = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let middle = name.strip_prefix(stem).unwrap_or("");
             Track {
@@ -203,10 +220,19 @@ pub struct Tools {
 impl Tools {
     /// Find `ffprobe.exe`/`ffmpeg.exe` in the first of `dirs` that has both.
     pub fn find(dirs: &[PathBuf]) -> Option<Tools> {
-        let exe = |n: &str| if cfg!(windows) { format!("{n}.exe") } else { n.to_string() };
+        let exe = |n: &str| {
+            if cfg!(windows) {
+                format!("{n}.exe")
+            } else {
+                n.to_string()
+            }
+        };
         dirs.iter().find_map(|d| {
             let (p, m) = (d.join(exe("ffprobe")), d.join(exe("ffmpeg")));
-            (p.is_file() && m.is_file()).then_some(Tools { ffprobe: p, ffmpeg: m })
+            (p.is_file() && m.is_file()).then_some(Tools {
+                ffprobe: p,
+                ffmpeg: m,
+            })
         })
     }
 }
@@ -227,18 +253,34 @@ fn quiet(program: &Path) -> Command {
 /// Probe a media file: embedded tracks plus external subtitle files next to it.
 pub fn probe(tools: &Tools, video: &Path) -> Result<Probe, MediaError> {
     if !video.is_file() {
-        return Err(MediaError::Probe(format!("{} was not found", video.display())));
+        return Err(MediaError::Probe(format!(
+            "{} was not found",
+            video.display()
+        )));
     }
     let out = quiet(&tools.ffprobe)
-        .args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"])
+        .args([
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+        ])
         .arg(video)
         .output()?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        return Err(MediaError::Probe(err.lines().last().unwrap_or("ffprobe failed").to_string()));
+        return Err(MediaError::Probe(
+            err.lines().last().unwrap_or("ffprobe failed").to_string(),
+        ));
     }
     let mut p = parse_ffprobe(&String::from_utf8_lossy(&out.stdout))?;
-    if !p.tracks.iter().any(|t| t.kind == TrackKind::Video || t.kind == TrackKind::Audio) {
+    if !p
+        .tracks
+        .iter()
+        .any(|t| t.kind == TrackKind::Video || t.kind == TrackKind::Audio)
+    {
         return Err(MediaError::Probe("no video or audio streams".into()));
     }
     let next_sub = p.tracks.iter().filter(|t| t.kind == TrackKind::Sub).count() as u32 + 1;
@@ -279,12 +321,20 @@ pub fn file_key(video: &Path) -> String {
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    format!("{:016x}", fnv1a(format!("{}|{size}|{mtime}", video.display()).as_bytes()))
+    format!(
+        "{:016x}",
+        fnv1a(format!("{}|{size}|{mtime}", video.display()).as_bytes())
+    )
 }
 
 /// Extract every embedded text subtitle track of `video` into `cache_dir` in ONE ffmpeg run (the
 /// file is read once), skipping tracks already extracted. Returns (track id, file) pairs.
-pub fn extract_subs(tools: &Tools, video: &Path, tracks: &[Track], cache_dir: &Path) -> Result<Vec<(u32, PathBuf)>, MediaError> {
+pub fn extract_subs(
+    tools: &Tools,
+    video: &Path,
+    tracks: &[Track],
+    cache_dir: &Path,
+) -> Result<Vec<(u32, PathBuf)>, MediaError> {
     std::fs::create_dir_all(cache_dir)?;
     let key = file_key(video);
     let mut result = Vec::new();
@@ -299,20 +349,30 @@ pub fn extract_subs(tools: &Tools, video: &Path, tracks: &[Track], cache_dir: &P
         if out.is_file() {
             continue;
         }
-        let codec = if t.codec == "mov_text" || t.codec == "text" { "srt" } else { "copy" };
+        let codec = if t.codec == "mov_text" || t.codec == "text" {
+            "srt"
+        } else {
+            "copy"
+        };
         // Write to a temp name and rename after success, so a crash never leaves a half file in the cache.
         let tmp = cache_dir.join(format!("{key}-s{}.part.{ext}", t.id));
-        cmd.args(["-map", &format!("0:{idx}"), "-c:s", codec]).arg(&tmp);
+        cmd.args(["-map", &format!("0:{idx}"), "-c:s", codec])
+            .arg(&tmp);
         pending += 1;
     }
     if pending > 0 {
         let out = cmd.output()?;
         if !out.status.success() {
             let err = String::from_utf8_lossy(&out.stderr);
-            return Err(MediaError::Extract(err.lines().last().unwrap_or("ffmpeg failed").to_string()));
+            return Err(MediaError::Extract(
+                err.lines().last().unwrap_or("ffmpeg failed").to_string(),
+            ));
         }
         for (id, final_path) in &result {
-            let ext = final_path.extension().and_then(|e| e.to_str()).unwrap_or("srt");
+            let ext = final_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("srt");
             let tmp = cache_dir.join(format!("{key}-s{id}.part.{ext}"));
             if tmp.is_file() {
                 std::fs::rename(&tmp, final_path)?;
@@ -329,7 +389,15 @@ pub fn thumbnail(tools: &Tools, video: &Path, at_ms: u64, out: &Path) -> Result<
     }
     let tmp = out.with_extension("part.jpg");
     let st = quiet(&tools.ffmpeg)
-        .args(["-v", "error", "-nostdin", "-y", "-ss", &format!("{:.3}", at_ms as f64 / 1000.0), "-i"])
+        .args([
+            "-v",
+            "error",
+            "-nostdin",
+            "-y",
+            "-ss",
+            &format!("{:.3}", at_ms as f64 / 1000.0),
+            "-i",
+        ])
         .arg(video)
         .args(["-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4"])
         .arg(&tmp)
@@ -346,14 +414,23 @@ mod tests {
     use super::*;
 
     fn fixture(name: &str) -> String {
-        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name)).unwrap()
+        std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(name),
+        )
+        .unwrap()
     }
 
     #[test]
     fn parses_real_ffprobe_output_mkv() {
         let p = parse_ffprobe(&fixture("ffprobe-hi10p-ass.json")).unwrap();
         assert_eq!(p.duration_ms, Some(30_030));
-        let kinds: Vec<_> = p.tracks.iter().map(|t| (t.kind, t.id, t.codec.as_str(), t.lang.as_deref())).collect();
+        let kinds: Vec<_> = p
+            .tracks
+            .iter()
+            .map(|t| (t.kind, t.id, t.codec.as_str(), t.lang.as_deref()))
+            .collect();
         assert_eq!(
             kinds,
             vec![
@@ -372,7 +449,10 @@ mod tests {
     #[test]
     fn parses_real_ffprobe_output_mp4() {
         let p = parse_ffprobe(&fixture("ffprobe-h264-mp4.json")).unwrap();
-        assert_eq!(p.tracks.iter().filter(|t| t.kind == TrackKind::Sub).count(), 0);
+        assert_eq!(
+            p.tracks.iter().filter(|t| t.kind == TrackKind::Sub).count(),
+            0
+        );
         assert!(p.duration_ms.unwrap() > 29_000);
     }
 
@@ -407,12 +487,27 @@ mod tests {
     fn finds_external_subs_without_writing() {
         let dir = std::env::temp_dir().join(format!("kp-ext-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        for f in ["Ep01.mkv", "Ep01.ja.ass", "Ep01.en.srt", "Ep02.ja.ass", "Ep01.txt"] {
+        for f in [
+            "Ep01.mkv",
+            "Ep01.ja.ass",
+            "Ep01.en.srt",
+            "Ep02.ja.ass",
+            "Ep01.txt",
+        ] {
             std::fs::write(dir.join(f), b"x").unwrap();
         }
         let subs = external_subs(&dir.join("Ep01.mkv"), 3);
-        let got: Vec<_> = subs.iter().map(|t| (t.id, t.codec.as_str(), t.lang.as_deref(), t.external)).collect();
-        assert_eq!(got, vec![(3, "subrip", Some("eng"), true), (4, "ass", Some("jpn"), true)]);
+        let got: Vec<_> = subs
+            .iter()
+            .map(|t| (t.id, t.codec.as_str(), t.lang.as_deref(), t.external))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (3, "subrip", Some("eng"), true),
+                (4, "ass", Some("jpn"), true)
+            ]
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

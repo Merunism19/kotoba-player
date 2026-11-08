@@ -18,7 +18,7 @@ what is specific to this repo.
 | UI checks | `pnpm -s lint && pnpm -s typecheck && pnpm -s test` |
 | Screenshots | `pnpm -s shots` (Playwright, writes `artifacts/shots/*.png`) |
 | Code map | `node scripts/codemap.mjs` → `docs/CODEMAP.md` (`--check` fails if stale) |
-| Ship | `node scripts/ship.mjs [--bump patch\|minor\|none] [--release] [--local-gate] [--dry-run]`, text from `.ship/commit-msg.txt`, `.ship/pr-body.md`, `.ship/release-notes.md` (bump → codemap → guards → commit/PR from files → gate → merge → release → `SHIP OK`) |
+| Ship | `node scripts/ship.mjs [--bump patch\|minor\|none] [--release] [--local-gate] [--no-merge] [--dry-run]`, text from `.ship/commit-msg.txt`, `.ship/pr-body.md`, `.ship/release-notes.md` (bump → codemap → guards → commit/PR from files → gate → merge → release → `SHIP OK`). `--no-merge` stops at a gated, open PR and prints `SHIP READY` (merges need the owner's OK). |
 
 ## Gates (local CI runs all of them)
 1. Encoding guard: every text file valid UTF-8, no CR bytes, no stray control chars.
@@ -38,3 +38,4 @@ what is specific to this repo.
 - 2026-11-08: Created from AGENT-WORKFLOW.md v1.0 during the design round.
 - 2026-11-08: Added scripts/ci.mjs, ship.mjs, codemap.mjs, guards (encoding, licenses, network) and `.github/workflows/ci.yml` (PR-only, ubuntu, no Rust).
 - 2026-11-08: Hosted Actions blocked by account billing; owner chose local-CI gating (`ship.mjs --local-gate`), which now also notes the gate on an already-open PR.
+- 2026-11-08: `ship.mjs --no-merge`: merging into main needs the owner's OK per PR, so phases ship as gated, open (stacked) PRs.

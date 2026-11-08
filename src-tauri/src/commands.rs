@@ -1,7 +1,7 @@
 //! Tauri commands behind src/lib/backend.ts: prepare a file, cues, alignment, tokenizing, per-file state, recents.
 
 use crate::library::{self, Library};
-use crate::media::{self, Tools, Track, TrackKind};
+use crate::media::{self, Tools, Track};
 use crate::stores::{self, Store};
 use base64::Engine;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -38,15 +38,17 @@ impl Core {
     }
 
     fn tools(&self) -> Result<&Tools, String> {
-        self.tools
-            .as_ref()
-            .ok_or_else(|| "The bundled ffmpeg/ffprobe are missing (run: node scripts/fetch-deps.mjs).".to_string())
+        self.tools.as_ref().ok_or_else(|| {
+            "The bundled ffmpeg/ffprobe are missing (run: node scripts/fetch-deps.mjs).".to_string()
+        })
     }
 
     /// The tokenizer, created on first use (loading the dictionary takes a moment).
     pub fn tokenizer(&self) -> Result<&jptext::Tokenizer, String> {
         self.tokenizer
-            .get_or_init(|| jptext::Tokenizer::new().map_err(|e| format!("Tokenizer failed to load: {e}")))
+            .get_or_init(|| {
+                jptext::Tokenizer::new().map_err(|e| format!("Tokenizer failed to load: {e}"))
+            })
             .as_ref()
             .map_err(Clone::clone)
     }
@@ -66,9 +68,14 @@ impl Core {
         let file = lock(&self.sub_files)
             .get(path)
             .and_then(|m| m.get(&sub_id).cloned())
-            .ok_or_else(|| format!("Subtitle track {sub_id} isn't available (image-based or not prepared)."))?;
-        let bytes = std::fs::read(&file).map_err(|e| format!("Couldn't read {}: {e}", file.display()))?;
-        let track = Arc::new(subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse subtitles: {e}"))?);
+            .ok_or_else(|| {
+                format!("Subtitle track {sub_id} isn't available (image-based or not prepared).")
+            })?;
+        let bytes =
+            std::fs::read(&file).map_err(|e| format!("Couldn't read {}: {e}", file.display()))?;
+        let track = Arc::new(
+            subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse subtitles: {e}"))?,
+        );
         lock(&self.parsed).insert(key, track.clone());
         Ok(track)
     }
@@ -120,7 +127,11 @@ fn japanese_ratio(text: &str) -> f64 {
             jp += 1;
         }
     }
-    if all == 0 { 0.0 } else { jp as f64 / all as f64 }
+    if all == 0 {
+        0.0
+    } else {
+        jp as f64 / all as f64
+    }
 }
 
 fn lang_is(t: &Track, codes: &[&str], words: &[&str]) -> bool {
@@ -131,7 +142,12 @@ fn lang_is(t: &Track, codes: &[&str], words: &[&str]) -> bool {
 
 /// Choose the Japanese and English subtitle tracks: remembered choice, else language tags/titles,
 /// else the content of untagged tracks (share of Japanese characters).
-fn choose_subs(core: &Core, path: &str, tracks: &[Track], remembered: (Option<u32>, Option<u32>)) -> (Option<u32>, Option<u32>) {
+fn choose_subs(
+    core: &Core,
+    path: &str,
+    tracks: &[Track],
+    remembered: (Option<u32>, Option<u32>),
+) -> (Option<u32>, Option<u32>) {
     let readable: Vec<&Track> = tracks.iter().filter(|t| media::is_text_sub(t)).collect();
     let has = |id: Option<u32>| id.filter(|i| readable.iter().any(|t| t.id == *i));
     let ratio = |t: &Track| {
@@ -143,15 +159,33 @@ fn choose_subs(core: &Core, path: &str, tracks: &[Track], remembered: (Option<u3
             .unwrap_or(0.0)
     };
     let jp = has(remembered.0)
-        .or_else(|| readable.iter().find(|t| lang_is(t, &["jpn", "ja", "jp"], &["japanese", "日本語"])).map(|t| t.id))
-        .or_else(|| readable.iter().filter(|t| t.lang.is_none()).find(|t| ratio(t) > 0.3).map(|t| t.id));
+        .or_else(|| {
+            readable
+                .iter()
+                .find(|t| lang_is(t, &["jpn", "ja", "jp"], &["japanese", "日本語"]))
+                .map(|t| t.id)
+        })
+        .or_else(|| {
+            readable
+                .iter()
+                .filter(|t| t.lang.is_none())
+                .find(|t| ratio(t) > 0.3)
+                .map(|t| t.id)
+        });
     let en = has(remembered.1)
-        .or_else(|| readable.iter().find(|t| lang_is(t, &["eng", "en"], &["english"])).map(|t| t.id))
+        .or_else(|| {
+            readable
+                .iter()
+                .find(|t| lang_is(t, &["eng", "en"], &["english"]))
+                .map(|t| t.id)
+        })
         .or_else(|| {
             readable
                 .iter()
                 .filter(|t| t.lang.is_none() && Some(t.id) != jp)
-                .find(|t| ratio(t) < 0.05 && core.track(path, t.id).is_ok_and(|tr| !tr.cues.is_empty()))
+                .find(|t| {
+                    ratio(t) < 0.05 && core.track(path, t.id).is_ok_and(|tr| !tr.cues.is_empty())
+                })
                 .map(|t| t.id)
         });
     (jp, en.filter(|e| Some(*e) != jp))
@@ -162,10 +196,11 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     let video = Path::new(path);
     let probe = media::probe(tools, video).map_err(|e| e.to_string())?;
     let sub_cache = core.cache_dir.join("subs");
-    let mut files: HashMap<u32, PathBuf> = media::extract_subs(tools, video, &probe.tracks, &sub_cache)
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .collect();
+    let mut files: HashMap<u32, PathBuf> =
+        media::extract_subs(tools, video, &probe.tracks, &sub_cache)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .collect();
     for t in probe.tracks.iter().filter(|t| t.external) {
         if let Some(p) = &t.path {
             files.insert(t.id, PathBuf::from(p));
@@ -189,7 +224,9 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
         .and_then(|(id, t)| t.signs_only_ass().map(|ass| (id, ass)))
         .and_then(|(id, ass)| {
             let out = sub_cache.join(format!("{}-s{id}.signs.ass", media::file_key(video)));
-            std::fs::write(&out, ass).ok().map(|_| out.to_string_lossy().into_owned())
+            std::fs::write(&out, ass)
+                .ok()
+                .map(|_| out.to_string_lossy().into_owned())
         });
 
     {
@@ -215,7 +252,10 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
 
 /// Probe a file, extract its subtitles, pick tracks and restore per-file state.
 #[tauri::command]
-pub async fn prepare_media(core: tauri::State<'_, Arc<Core>>, path: String) -> Result<PreparedMedia, String> {
+pub async fn prepare_media(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+) -> Result<PreparedMedia, String> {
     let core = core.inner().clone();
     tauri::async_runtime::spawn_blocking(move || prepare(&core, &path))
         .await
@@ -224,7 +264,11 @@ pub async fn prepare_media(core: tauri::State<'_, Arc<Core>>, path: String) -> R
 
 /// All cues of a subtitle track of the prepared file.
 #[tauri::command]
-pub async fn get_cues(core: tauri::State<'_, Arc<Core>>, path: String, sub_id: u32) -> Result<Vec<subtitles::Cue>, String> {
+pub async fn get_cues(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: u32,
+) -> Result<Vec<subtitles::Cue>, String> {
     let core = core.inner().clone();
     tauri::async_runtime::spawn_blocking(move || core.track(&path, sub_id).map(|t| t.cues.clone()))
         .await
@@ -251,7 +295,10 @@ pub async fn align_cues(
 
 /// Split a subtitle line into word units.
 #[tauri::command]
-pub async fn tokenize(core: tauri::State<'_, Arc<Core>>, text: String) -> Result<Vec<jptext::WordUnit>, String> {
+pub async fn tokenize(
+    core: tauri::State<'_, Arc<Core>>,
+    text: String,
+) -> Result<Vec<jptext::WordUnit>, String> {
     let core = core.inner().clone();
     tauri::async_runtime::spawn_blocking(move || core.tokenizer().map(|t| t.word_units(&text)))
         .await
@@ -276,7 +323,11 @@ pub struct FileStatePatch {
 
 /// Remember the user's choices for this file.
 #[tauri::command]
-pub fn save_file_state(core: tauri::State<'_, Arc<Core>>, path: String, state: FileStatePatch) -> Result<(), String> {
+pub fn save_file_state(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    state: FileStatePatch,
+) -> Result<(), String> {
     let mut lib = lock(&core.library);
     let e = lib.entry(&path);
     if let Some(o) = state.offset_ms {
@@ -293,12 +344,19 @@ pub fn save_file_state(core: tauri::State<'_, Arc<Core>>, path: String, state: F
 }
 
 fn thumb_path(core: &Core, video: &Path) -> PathBuf {
-    core.cache_dir.join("thumbs").join(format!("{}.jpg", media::file_key(video)))
+    core.cache_dir
+        .join("thumbs")
+        .join(format!("{}.jpg", media::file_key(video)))
 }
 
 /// Remember the playback position; refreshes the card thumbnail in the background now and then.
 #[tauri::command]
-pub fn save_position(core: tauri::State<'_, Arc<Core>>, path: String, position_ms: u64, duration_ms: u64) -> Result<(), String> {
+pub fn save_position(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    position_ms: u64,
+    duration_ms: u64,
+) -> Result<(), String> {
     let refresh_thumb = {
         let mut lib = lock(&core.library);
         let e = lib.entry(&path);
@@ -306,7 +364,9 @@ pub fn save_position(core: tauri::State<'_, Arc<Core>>, path: String, position_m
         if duration_ms > 0 {
             e.duration_ms = duration_ms;
         }
-        let stale = e.thumb_pos_ms.is_none_or(|t| t.abs_diff(position_ms) > 30_000);
+        let stale = e
+            .thumb_pos_ms
+            .is_none_or(|t| t.abs_diff(position_ms) > 30_000);
         let refresh = position_ms >= 10_000 && stale;
         if refresh {
             e.thumb_pos_ms = Some(position_ms);
@@ -334,13 +394,22 @@ pub fn recent_files(core: tauri::State<'_, Arc<Core>>) -> Vec<RecentItem> {
         .filter(|(p, _)| Path::new(p.as_str()).is_file())
         .map(|(p, s)| RecentItem {
             path: p.clone(),
-            title: if s.title.is_empty() { library::title_from_path(p) } else { s.title.clone() },
+            title: if s.title.is_empty() {
+                library::title_from_path(p)
+            } else {
+                s.title.clone()
+            },
             position_ms: s.position_ms,
             duration_ms: s.duration_ms,
             last_opened: library::iso8601(s.last_opened_ms),
             thumb_url: std::fs::read(thumb_path(&core, Path::new(p.as_str())))
                 .ok()
-                .map(|b| format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(b))),
+                .map(|b| {
+                    format!(
+                        "data:image/jpeg;base64,{}",
+                        base64::engine::general_purpose::STANDARD.encode(b)
+                    )
+                }),
         })
         .collect()
 }
@@ -348,7 +417,10 @@ pub fn recent_files(core: tauri::State<'_, Arc<Core>>) -> Vec<RecentItem> {
 /// Paths passed on the command line ("Open with" from Explorer).
 #[tauri::command]
 pub fn startup_files() -> Vec<String> {
-    std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect()
+    std::env::args()
+        .skip(1)
+        .filter(|a| !a.starts_with('-'))
+        .collect()
 }
 
 #[cfg(test)]
@@ -364,7 +436,8 @@ mod tests {
 
     #[test]
     fn patch_distinguishes_null_from_absent() {
-        let p: FileStatePatch = serde_json::from_str(r#"{"jpSubId": null, "offsetMs": 300}"#).unwrap();
+        let p: FileStatePatch =
+            serde_json::from_str(r#"{"jpSubId": null, "offsetMs": 300}"#).unwrap();
         assert_eq!(p.jp_sub_id, Some(None));
         assert_eq!(p.en_sub_id, None);
         assert_eq!(p.offset_ms, Some(300));
@@ -384,12 +457,20 @@ mod tests {
         }
         let tmp = std::env::temp_dir().join(format!("kp-core-{}", std::process::id()));
         let core = Core::new(&[tools_dir], tmp.join("data"), tmp.join("cache"));
-        let path = sample.canonicalize().unwrap().to_string_lossy().into_owned();
+        let path = sample
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let p = prepare(&core, &path).unwrap();
         assert_eq!((p.jp_sub_id, p.en_sub_id), (Some(1), Some(2)));
         assert!(p.signs_ass_path.is_some(), "the sample has a sign line");
         let jp = core.track(&path, 1).unwrap();
-        assert!(jp.cues.iter().any(|c| c.text == "もう諦めないって決めたんだ。"));
+        assert!(
+            jp.cues
+                .iter()
+                .any(|c| c.text == "もう諦めないって決めたんだ。")
+        );
         let en = core.track(&path, 2).unwrap();
         let pairs = subtitles::align(&jp.cues, &en.cues);
         assert!(pairs.iter().filter(|(_, e)| !e.is_empty()).count() >= 7);
