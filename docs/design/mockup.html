@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kotoba Player Mockup</title>
+<!-- Mockup only: the app bundles these fonts (OFL) instead of loading them from the web. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0D12; --bg-2:#12151D;
+  --glass:rgba(18,20,28,.72); --glass-strong:rgba(16,18,26,.86);
+  --hairline:rgba(255,255,255,.08); --hairline-2:rgba(255,255,255,.14);
+  --text:#F2F3F7; --text-2:#B4B8C5; --text-3:#7A7F8E;
+  --accent:#FF7AA2; --accent-soft:rgba(255,122,162,.16);
+  --accent-2:#8A9BFF; --gold:#FFD27A;
+  --heiban:#5BA8FF; --atama:#FF6B6B; --naka:#FFA94D; --odaka:#4FD6A8;
+  --shadow:0 20px 60px rgba(0,0,0,.45);
+  --ui:'Inter',system-ui,sans-serif; --jp:'Noto Sans JP',sans-serif; --head:'Zen Maru Gothic','Noto Sans JP',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--ui);line-height:1.5;
+  background-image:radial-gradient(1200px 600px at 10% -10%,rgba(138,155,255,.10),transparent 60%),
+  radial-gradient(900px 500px at 100% 0%,rgba(255,122,162,.08),transparent 60%);}
+.page{max-width:1240px;margin:0 auto;padding:48px 16px 96px}
+header.intro h1{font-size:28px;font-weight:700;letter-spacing:-.02em}
+header.intro p{color:var(--text-2);margin-top:6px;max-width:760px}
+.section-label{display:flex;align-items:center;gap:10px;margin:56px 0 16px;color:var(--text-2);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.section-label span.num{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.note{color:var(--text-3);font-size:13px;margin-top:12px;max-width:820px}
+
+/* ---------- placeholder anime frame (pure CSS) ---------- */
+.scene{position:relative;overflow:hidden;background:
+  linear-gradient(180deg,#1B1F4A 0%,#4B3B78 32%,#C46B8E 58%,#F3A774 74%,#F7C98B 82%);}
+.scene .sun{position:absolute;left:62%;top:52%;width:16%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,#FFE7B0 0%,#FFC27A 55%,rgba(255,194,122,0) 72%);filter:blur(1px)}
+.scene .star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;opacity:.7}
+.scene .m1,.scene .m2,.scene .m3{position:absolute;left:0;right:0;bottom:0}
+.scene .m1{height:42%;background:#5A3F6E;clip-path:polygon(0 60%,12% 35%,24% 52%,38% 22%,52% 48%,63% 30%,78% 55%,90% 28%,100% 45%,100% 100%,0 100%)}
+.scene .m2{height:30%;background:#34264A;clip-path:polygon(0 40%,15% 62%,30% 30%,46% 58%,58% 38%,72% 66%,86% 40%,100% 60%,100% 100%,0 100%)}
+.scene .m3{height:16%;background:#1A1428}
+.scene .figure{position:absolute;bottom:16%;left:28%;width:7%;aspect-ratio:1/2.4;background:#120D1C;
+  clip-path:polygon(38% 0,62% 0,70% 14%,64% 22%,86% 34%,92% 70%,78% 72%,74% 100%,26% 100%,22% 72%,8% 70%,14% 34%,36% 22%,30% 14%)}
+.scene .grain{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.45) 100%)}
+
+/* ---------- player ---------- */
+.player{position:relative;aspect-ratio:16/9;border-radius:20px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--hairline);container-type:inline-size}
+.player .scene{position:absolute;inset:0}
+.glass{background:var(--glass);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);border:1px solid var(--hairline)}
+.topbar{position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:center;gap:12px;padding:8px 10px 8px 16px;border-radius:14px}
+.topbar .title{font-weight:600;font-size:14px}
+.topbar .ep{color:var(--text-2);font-size:13px}
+.topbar .spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:500;background:rgba(255,255,255,.06);border:1px solid var(--hairline);color:var(--text-2);white-space:nowrap}
+.chip.sync{color:var(--odaka);border-color:rgba(79,214,168,.3);background:rgba(79,214,168,.08)}
+.iconbtn{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;color:var(--text);background:transparent;border:0;cursor:pointer}
+.iconbtn:hover{background:rgba(255,255,255,.08)}
+.iconbtn svg{width:18px;height:18px}
+
+.subs{position:absolute;left:0;right:0;bottom:19%;text-align:center;pointer-events:none}
+.jp-line{display:inline-block;font-family:var(--jp);font-weight:700;font-size:clamp(16px,3.4cqw,40px);letter-spacing:.02em;
+  text-shadow:0 2px 12px rgba(0,0,0,.65),0 0 2px rgba(0,0,0,.9);pointer-events:auto}
+.tok{position:relative;padding:0 .04em;border-radius:6px;cursor:pointer;transition:background .15s}
+.tok:hover{background:rgba(255,255,255,.10);box-shadow:inset 0 -2px 0 rgba(255,255,255,.5)}
+.tok.active{background:var(--accent-soft);box-shadow:inset 0 -3px 0 var(--accent);color:#fff}
+.en-line{margin-top:6px;font-size:clamp(11px,1.7cqw,20px);color:rgba(242,243,247,.9);filter:blur(5px);transition:filter .2s;pointer-events:auto;
+  text-shadow:0 1px 8px rgba(0,0,0,.7)}
+.en-line:hover{filter:none}
+
+.controls{position:absolute;left:14px;right:14px;bottom:14px;padding:10px 14px 12px;border-radius:16px}
+.seek{position:relative;height:5px;border-radius:999px;background:rgba(255,255,255,.12);margin:4px 0 10px}
+.seek .played{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:999px;background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+.seek .knob{position:absolute;left:41%;top:50%;width:13px;height:13px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(255,122,162,.25)}
+.seek .cue{position:absolute;top:-4px;width:1px;height:4px;background:rgba(255,255,255,.25)}
+.seek .mined{position:absolute;top:-6px;width:3px;height:6px;border-radius:2px;background:var(--gold)}
+.ctl-row{display:flex;align-items:center;gap:4px}
+.ctl-row .time{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;margin-left:8px}
+.ctl-row .spacer{flex:1}
+.play{width:40px;height:40px;border-radius:12px;background:#fff;color:#111}
+.play:hover{background:#fff}
+
+/* ---------- dictionary popup ---------- */
+.popup{position:absolute;left:50%;bottom:calc(19% + 5.5cqw);transform:translateX(-62%);width:min(400px,86cqw);
+  border-radius:20px;box-shadow:var(--shadow);background:var(--glass-strong);padding:18px 18px 14px;animation:pop .18s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{opacity:0;transform:translateX(-62%) translateY(6px) scale(.96)}to{opacity:1;transform:translateX(-62%) scale(1)}}
+.popup::after{content:"";position:absolute;bottom:-8px;left:62%;width:16px;height:16px;background:var(--glass-strong);
+  border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);transform:translateX(-50%) rotate(45deg)}
+.pop-head{display:flex;align-items:flex-start;gap:12px}
+.headword{font-family:var(--head);font-size:40px;font-weight:700;line-height:1.1}
+.headword ruby rt{font-size:13px;font-family:var(--jp);font-weight:500;color:var(--naka);letter-spacing:.06em}
+.reading{font-family:var(--jp);font-size:15px;color:var(--text-2);margin-top:6px;letter-spacing:.04em}
+.pop-head .spacer{flex:1}
+.audio{width:42px;height:42px;border-radius:14px;border:1px solid var(--hairline-2);background:rgba(255,255,255,.06);color:var(--text);display:grid;place-items:center;cursor:pointer;transition:transform .12s,background .2s}
+.audio:hover{background:rgba(255,255,255,.12);transform:scale(1.05)}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;border:1px solid var(--hairline-2);color:var(--text-2)}
+.badge.freq{color:var(--gold);border-color:rgba(255,210,122,.35);background:rgba(255,210,122,.08)}
+.badge.common{color:var(--odaka);border-color:rgba(79,214,168,.35);background:rgba(79,214,168,.08)}
+.pitch{display:flex;align-items:center;gap:14px;margin-top:14px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--hairline)}
+.pitch svg{flex:none}
+.pitch .pname{font-size:12px;color:var(--text-2)}
+.pitch .pname b{display:block;color:var(--naka);font-size:13px;font-weight:600}
+.inflect{margin-top:12px;font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.inflect .from{font-family:var(--jp);color:var(--text)}
+.inflect .tag{padding:2px 8px;border-radius:999px;background:rgba(138,155,255,.12);color:var(--accent-2);font-weight:500}
+.senses{list-style:none;margin-top:12px;display:grid;gap:8px;counter-reset:s}
+.senses li{counter-increment:s;display:grid;grid-template-columns:22px 1fr;gap:4px;font-size:14px;color:var(--text)}
+.senses li::before{content:counter(s);display:grid;place-items:center;width:18px;height:18px;margin-top:2px;border-radius:6px;background:rgba(255,255,255,.07);font-size:11px;color:var(--text-2)}
+.pos{font-size:11px;color:var(--text-3);display:block}
+.pop-foot{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--hairline)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:12px;font:600 13px var(--ui);border:1px solid var(--hairline-2);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:transparent;color:#1A0D14;box-shadow:0 8px 24px rgba(255,122,162,.35)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn svg{width:16px;height:16px}
+.kbd{font:500 11px var(--ui);color:var(--text-3);margin-left:auto}
+.kbd kbd{font:inherit;padding:1px 6px;border-radius:5px;border:1px solid var(--hairline-2);color:var(--text-2)}
+
+/* ---------- anki cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.card-wrap .cap{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px}
+.card{border-radius:24px;background:linear-gradient(180deg,#161925,#10131B);border:1px solid var(--hairline);box-shadow:var(--shadow);padding:32px 24px 24px;text-align:center}
+.card ruby rt{font-family:var(--jp);font-size:.42em;color:var(--naka);opacity:0;transition:opacity .15s;letter-spacing:.04em}
+.card ruby:hover rt{opacity:1}
+.c-word{font-family:var(--head);font-size:52px;font-weight:700;line-height:1.25;cursor:default}
+.c-word ruby rt{font-size:15px}
+.c-sentence{font-family:var(--jp);font-size:21px;margin-top:18px;line-height:2.1;color:var(--text)}
+.c-sentence .hl{color:var(--accent);font-weight:700}
+.c-sentence ruby rt{font-size:11px}
+.c-shot{margin-top:20px;border-radius:16px;overflow:hidden;aspect-ratio:16/9;box-shadow:0 12px 32px rgba(0,0,0,.4);border:1px solid var(--hairline)}
+.c-shot .scene{width:100%;height:100%}
+.c-under{margin-top:6px;display:grid;gap:6px;justify-items:center}
+.c-reading{font-family:var(--jp);font-size:18px;letter-spacing:.06em;color:var(--naka)}
+.c-meaning{font-size:16px;color:var(--text);max-width:34ch}
+.c-meaning small{display:block;color:var(--text-3);font-size:12px;margin-top:2px}
+.c-trans{margin:10px auto 0;max-width:36ch;text-align:left;font-size:15px;font-style:italic;color:var(--text-2);padding:6px 0 6px 14px;border-left:2px solid var(--accent)}
+.c-audio{display:flex;justify-content:center;gap:8px;margin-top:18px}
+.c-audio .btn{height:34px;font-size:12px}
+.c-source{margin-top:16px;font-size:11px;color:var(--text-3);letter-spacing:.04em}
+.divider{height:1px;background:var(--hairline);margin:20px 0 4px}
+.hint{display:inline-block;margin-top:14px;font-size:11px;color:var(--text-3);border:1px dashed var(--hairline-2);border-radius:999px;padding:3px 10px}
+
+/* ---------- palette ---------- */
+.palette{display:flex;flex-wrap:wrap;gap:10px}
+.sw{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;border:1px solid var(--hairline);font-size:12px;color:var(--text-2)}
+.sw i{width:22px;height:22px;border-radius:50%;display:block;border:1px solid var(--hairline-2)}
+
+@media (max-width:640px){
+  .page{padding-top:28px}
+  .topbar .ep,.topbar .chip:not(.sync){display:none}
+  .popup{width:92cqw;transform:translateX(-50%);padding:12px}
+  .popup::after{left:50%}
+  @keyframes pop{from{opacity:0}to{opacity:1}}
+  .headword{font-size:28px}
+  .senses li:nth-child(n+2),.pitch,.badges,.inflect{display:none}
+  .c-word{font-size:42px}
+}
+.btn,.kbd{white-space:nowrap}
+.popup{max-height:calc(81% - 76px);overflow:auto;scrollbar-width:none}
+/* smaller players (windowed): the popup drops its extras so it never covers the whole frame */
+@container (max-width:980px){
+  .popup{bottom:calc(19% + 7.5cqw);width:340px;padding:14px 14px 10px}
+  .headword{font-size:30px}
+  .badges .badge:nth-child(n+3),.inflect,.senses li:nth-child(n+2),.kbd{display:none}
+  .pitch{margin-top:10px;padding:6px 10px}
+  .pitch svg{width:150px;height:43px}
+  .pop-foot{margin-top:10px;padding-top:10px}
+}
+@media (prefers-reduced-motion:reduce){.popup{animation:none}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Kotoba Player — design mockup</h1>
+    <p>Static visual target for the build (not working code). The frame is a CSS placeholder for a real anime screenshot.
+       Hover the Japanese words in the cards to see the reading appear.</p>
+  </header>
+
+  <!-- ================= 1. PLAYER + POPUP ================= -->
+  <div class="section-label"><span class="num">1</span>Player · clicked word → dictionary popup</div>
+  <div class="player">
+    <div class="scene" aria-hidden="true">
+      <div class="star" style="left:12%;top:10%"></div><div class="star" style="left:30%;top:6%"></div>
+      <div class="star" style="left:48%;top:14%"></div><div class="star" style="left:71%;top:8%"></div>
+      <div class="star" style="left:86%;top:16%"></div>
+      <div class="sun"></div><div class="m1"></div><div class="m2"></div><div class="figure"></div><div class="m3"></div><div class="grain"></div>
+    </div>
+
+    <div class="topbar glass">
+      <button class="iconbtn" aria-label="Back to library"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title">Sunset Journey</div><div class="ep">S01 · E07</div>
+      <div class="spacer"></div>
+      <span class="chip sync">● synced +0.30 s</span>
+      <span class="chip">🎧 日本語</span><span class="chip">字幕 JP + EN</span>
+      <button class="iconbtn" aria-label="Transcript"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg></button>
+      <button class="iconbtn" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+    </div>
+
+    <!-- dictionary popup -->
+    <div class="popup glass" role="dialog" aria-label="Dictionary">
+      <div class="pop-head">
+        <div>
+          <div class="headword"><ruby>諦<rt>あきら</rt></ruby>める</div>
+          <div class="reading">あきらめる</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="audio" aria-label="Play pronunciation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>
+        </button>
+      </div>
+      <div class="badges"><span class="badge common">common</span><span class="badge freq">★ freq #2,184</span><span class="badge">JLPT N3</span><span class="badge">ichidan · transitive</span></div>
+
+      <div class="pitch">
+        <!-- あ(L) き(H) ら(H) め(H) る(L) [particle L] : 中高 [4] -->
+        <svg width="190" height="54" viewBox="0 0 190 54" aria-label="Pitch: low high high high low">
+          <g fill="none" stroke="#FFA94D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16,26 46,8 76,8 106,8 136,26"/>
+            <polyline points="136,26 166,26" stroke-dasharray="3 4" opacity=".6"/>
+          </g>
+          <g fill="#FFA94D"><circle cx="16" cy="26" r="4"/><circle cx="46" cy="8" r="4"/><circle cx="76" cy="8" r="4"/><circle cx="106" cy="8" r="4"/><circle cx="136" cy="26" r="4"/></g>
+          <circle cx="166" cy="26" r="4" fill="none" stroke="#FFA94D" stroke-width="2" opacity=".6"/>
+          <g font-family="Noto Sans JP" font-size="13" fill="#B4B8C5" text-anchor="middle">
+            <text x="16" y="48">あ</text><text x="46" y="48">き</text><text x="76" y="48">ら</text><text x="106" y="48">め</text><text x="136" y="48">る</text>
+          </g>
+        </svg>
+        <div class="pname"><b>中高 nakadaka [4]</b>drops after め</div>
+      </div>
+
+      <div class="inflect"><span class="from">諦めない</span> → <span class="from">諦める</span><span class="tag">negative</span></div>
+
+      <ol class="senses">
+        <li><div>to give up; to abandon (hope, plans)<span class="pos">Ichidan verb · transitive</span></div></li>
+        <li><div>to resign oneself (to); to accept (fate)</div></li>
+      </ol>
+
+      <div class="pop-foot">
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add to Anki</button>
+        <button class="btn">Copy</button>
+        <span class="kbd"><kbd>Enter</kbd> add · <kbd>R</kbd> listen · <kbd>Esc</kbd></span>
+      </div>
+    </div>
+
+    <div class="subs">
+      <div class="jp-line"><span class="tok">もう</span><span class="tok active">諦めない</span><span class="tok">って</span><span class="tok">決めた</span><span class="tok">んだ</span>。</div><br>
+      <div class="en-line" title="Hover to reveal">I decided I'm not giving up anymore.</div>
+    </div>
+
+    <div class="controls glass">
+      <div class="seek">
+        <div class="played"></div>
+        <i class="cue" style="left:6%"></i><i class="cue" style="left:9%"></i><i class="cue" style="left:14%"></i><i class="cue" style="left:19%"></i><i class="cue" style="left:23%"></i><i class="cue" style="left:28%"></i><i class="cue" style="left:33%"></i><i class="cue" style="left:38%"></i><i class="cue" style="left:44%"></i><i class="cue" style="left:51%"></i><i class="cue" style="left:57%"></i><i class="cue" style="left:63%"></i><i class="cue" style="left:70%"></i><i class="cue" style="left:77%"></i><i class="cue" style="left:84%"></i><i class="cue" style="left:90%"></i>
+        <i class="mined" style="left:14%"></i><i class="mined" style="left:33%"></i>
+        <div class="knob"></div>
+      </div>
+      <div class="ctl-row">
+        <button class="iconbtn" aria-label="Previous line"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+        <button class="iconbtn play" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg></button>
+        <button class="iconbtn" aria-label="Next line"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+        <button class="iconbtn" aria-label="Replay line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/></svg></button>
+        <span class="time">09:52 / 23:40</span>
+        <div class="spacer"></div>
+        <span class="chip">1.0×</span>
+        <button class="iconbtn" aria-label="Volume"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
+        <button class="iconbtn" aria-label="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <p class="note">Video paused automatically while the popup is open. The clicked word is highlighted in the line; the English line stays blurred until hovered.
+    Seek-bar ticks = subtitle lines, gold ticks = lines already mined.</p>
+
+  <!-- ================= 2. ANKI CARD ================= -->
+  <div class="section-label"><span class="num">2</span>Anki card · front and back</div>
+  <div class="cards">
+    <div class="card-wrap">
+      <div class="cap">Front</div>
+      <div class="card">
+        <div class="c-word"><ruby>諦<rt>あきら</rt></ruby>める</div>
+        <div class="c-sentence">もう<span class="hl"><ruby>諦<rt>あきら</rt></ruby>めない</span>って<ruby>決<rt>き</rt></ruby>めたんだ。</div>
+        <div class="c-shot"><div class="scene"><div class="sun"></div><div class="m1"></div><div class="m2"></div><div class="figure"></div><div class="m3"></div><div class="grain"></div></div></div>
+        <span class="hint">hover a word → reading</span>
+      </div>
+    </div>
+
+    <div class="card-wrap">
+      <div class="cap">Back</div>
+      <div class="card">
+        <div class="c-word"><ruby>諦<rt>あきら</rt></ruby>める</div>
+        <div class="c-under">
+          <div class="c-reading">あきらめる <span style="font-size:12px;color:var(--text-3)">中高 [4]</span></div>
+          <div class="c-meaning">to give up; to abandon (hope, plans)<small>to resign oneself (to)</small></div>
+        </div>
+        <div class="divider"></div>
+        <div class="c-sentence">もう<span class="hl"><ruby>諦<rt>あきら</rt></ruby>めない</span>って<ruby>決<rt>き</rt></ruby>めたんだ。</div>
+        <div class="c-trans">I decided I'm not giving up anymore.</div>
+        <div class="c-audio">
+          <button class="btn">🔊 word</button><button class="btn">🔊 sentence</button>
+        </div>
+        <div class="c-source">Sunset Journey · S01E07 · 09:52</div>
+      </div>
+    </div>
+  </div>
+  <p class="note">Back keeps the Japanese word and sentence; translations sit under each. The screenshot stays on the front only (setting can show it on the back too). On phones, tapping a word shows its reading.</p>
+
+  <!-- ================= 3. TOKENS ================= -->
+  <div class="section-label"><span class="num">3</span>Palette</div>
+  <div class="palette">
+    <span class="sw"><i style="background:#0B0D12"></i>bg</span>
+    <span class="sw"><i style="background:rgba(18,20,28,.72)"></i>glass</span>
+    <span class="sw"><i style="background:#FF7AA2"></i>accent · sakura</span>
+    <span class="sw"><i style="background:#8A9BFF"></i>accent 2 · twilight</span>
+    <span class="sw"><i style="background:#FFD27A"></i>gold · mined</span>
+    <span class="sw"><i style="background:#5BA8FF"></i>平板 heiban</span>
+    <span class="sw"><i style="background:#FF6B6B"></i>頭高 atamadaka</span>
+    <span class="sw"><i style="background:#FFA94D"></i>中高 nakadaka</span>
+    <span class="sw"><i style="background:#4FD6A8"></i>尾高 odaka</span>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+artifacts/
+.ship/
+*.log
+# third-party binaries are fetched by scripts/fetch-deps.mjs (pinned + hashed), never committed
+src-tauri/bin/
+src-tauri/lib/
+vendor-cache/
+# local test videos
+samples/
