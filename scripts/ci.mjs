@@ -16,6 +16,8 @@ const node = (script, ...a) => ({ cmd: 'node', args: [script, ...a] });
 const steps = [
   { name: 'encoding', ...node('scripts/guards/encoding.mjs'), docs: true },
   { name: 'network', ...node('scripts/guards/network.mjs') },
+  { name: 'stores', ...node('scripts/guards/stores.mjs') },
+  { name: 'mpv', ...node('scripts/guards/mpv.mjs') },
   { name: 'licenses', ...node('scripts/guards/licenses.mjs'), slow: true },
   { name: 'codemap', ...node('scripts/codemap.mjs', '--check'), docs: true },
   { name: 'tsc', cmd: 'pnpm', args: ['-s', 'exec', 'tsc', '--noEmit'], skip: () => !has('tsconfig.json') && 'no tsconfig.json' },

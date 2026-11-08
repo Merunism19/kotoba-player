@@ -1869,6 +1869,7 @@ dependencies = [
 name = "kotoba-player"
 version = "0.1.1"
 dependencies = [
+ "base64 0.22.1",
  "serde",
  "serde_json",
  "tauri",
@@ -1876,6 +1877,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-libmpv",
  "tauri-plugin-opener",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
