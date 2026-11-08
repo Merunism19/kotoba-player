@@ -184,30 +184,39 @@ pub fn external_subs(video: &Path, first_id: u32) -> Vec<Track> {
         .into_iter()
         .enumerate()
         .map(|(i, p)| {
-            let ext = p
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
+            let mut t = external_track(&p, first_id + i as u32);
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            let middle = name.strip_prefix(stem).unwrap_or("");
-            Track {
-                id: first_id + i as u32,
-                kind: TrackKind::Sub,
-                codec: match ext.as_str() {
-                    "srt" => "subrip".into(),
-                    "vtt" => "webvtt".into(),
-                    other => other.into(),
-                },
-                lang: lang_from_filename(middle),
-                title: Some(name.to_string()),
-                is_default: false,
-                external: true,
-                path: Some(p.to_string_lossy().into_owned()),
-                stream_index: None,
-            }
+            // The language tag sits between the video's stem and the extension (Ep01.ja.ass).
+            t.lang = lang_from_filename(name.strip_prefix(stem).unwrap_or(""));
+            t
         })
         .collect()
+}
+
+/// A subtitle file outside the video (next to it, or added by the user) as a track with `id`.
+pub fn external_track(p: &Path, id: u32) -> Track {
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let stem = p.file_stem().and_then(|n| n.to_str()).unwrap_or("");
+    Track {
+        id,
+        kind: TrackKind::Sub,
+        codec: match ext.as_str() {
+            "srt" => "subrip".into(),
+            "vtt" => "webvtt".into(),
+            other => other.into(),
+        },
+        lang: lang_from_filename(stem),
+        title: Some(name.to_string()),
+        is_default: false,
+        external: true,
+        path: Some(p.to_string_lossy().into_owned()),
+        stream_index: None,
+    }
 }
 
 /// Locations of the bundled tools (`lib/` next to the exe in dev, the resource dir when installed).

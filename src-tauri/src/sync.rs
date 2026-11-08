@@ -37,12 +37,14 @@ pub fn deltas(reference: &[Cue], list: &[Cue]) -> Vec<i64> {
     if refs.is_empty() || spans.is_empty() {
         return vec![0; list.len()];
     }
-    // split penalty 7 is alass's recommended default; speed optimization 3 keeps it well under a second.
+    // Split penalty 7 is alass's recommended default. Its speed optimization cost ~120 ms of accuracy on
+    // a short track, so it's only used for very long ones (an episode has ~300-400 lines).
+    let speed = (spans.len() > 1500).then_some(3.0);
     let (d, _score) = alass_core::align(
         &refs,
         &spans,
         7.0,
-        Some(3.0),
+        speed,
         alass_core::standard_scoring,
         NoProgressHandler,
     );
@@ -127,7 +129,10 @@ mod tests {
         let d = deltas(&r, &other);
         let s = summarize(&d);
         // First half 1 s early-corrected, second half moved back over the 90 s break.
-        assert!((s.min_shift_ms + 1_000).abs() <= 20 && (s.max_shift_ms - 89_000).abs() <= 20, "{s:?}");
+        assert!(
+            (s.min_shift_ms + 1_000).abs() <= 20 && (s.max_shift_ms - 89_000).abs() <= 20,
+            "{s:?}"
+        );
         let mut fixed = other.clone();
         apply(&mut fixed, &d);
         for (a, b) in fixed.iter().zip(&r) {

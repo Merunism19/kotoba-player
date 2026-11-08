@@ -115,9 +115,17 @@ impl Core {
             })?;
         let bytes =
             std::fs::read(&file).map_err(|e| format!("Couldn't read {}: {e}", file.display()))?;
-        let track = Arc::new(
-            subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse subtitles: {e}"))?,
-        );
+        let mut parsed =
+            subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse subtitles: {e}"))?;
+        // Apply a stored auto-sync (one shift per cue) when it still matches this file's cues.
+        let shifts = lock(&self.library)
+            .files
+            .get(path)
+            .and_then(|s| s.retimed.get(&sub_id).cloned());
+        if let Some(shifts) = shifts.filter(|s| s.len() == parsed.cues.len()) {
+            crate::sync::apply(&mut parsed.cues, &shifts);
+        }
+        let track = Arc::new(parsed);
         lock(&self.parsed).insert(key, track.clone());
         Ok(track)
     }
@@ -237,7 +245,31 @@ fn choose_subs(
 fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     let tools = core.tools()?;
     let video = Path::new(path);
-    let probe = media::probe(tools, video).map_err(|e| e.to_string())?;
+    let mut probe = media::probe(tools, video).map_err(|e| e.to_string())?;
+    // Subtitle files the user added for this video (read in place), after everything found by the probe.
+    let extra: Vec<String> = lock(&core.library)
+        .files
+        .get(path)
+        .map(|s| s.extra_subs.clone())
+        .unwrap_or_default();
+    for file in extra {
+        let known = probe
+            .tracks
+            .iter()
+            .any(|t| t.path.as_deref() == Some(file.as_str()));
+        if known || !Path::new(&file).is_file() {
+            continue;
+        }
+        let id = probe
+            .tracks
+            .iter()
+            .filter(|t| t.kind == media::TrackKind::Sub)
+            .count() as u32
+            + 1;
+        probe
+            .tracks
+            .push(media::external_track(Path::new(&file), id));
+    }
     let sub_cache = core.cache_dir.join("subs");
     let mut files: HashMap<u32, PathBuf> =
         media::extract_subs(tools, video, &probe.tracks, &sub_cache)
@@ -889,6 +921,134 @@ pub async fn show_in_anki(
     .map_err(|e| format!("internal error: {e}"))?
 }
 
+// ---- External subtitles and sync ---------------------------------------------------------------
+
+/// Subtitle file extensions the user may add.
+const SUB_FILE_EXTS: &[&str] = &["ass", "ssa", "srt", "vtt"];
+
+fn add_sub_file(core: &Core, path: &str, file: &str) -> Result<PreparedMedia, String> {
+    let p = Path::new(file);
+    let ext_ok = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| SUB_FILE_EXTS.iter().any(|x| x.eq_ignore_ascii_case(e)));
+    if !ext_ok || !p.is_file() {
+        return Err(format!("Not a subtitle file (.ass, .srt or .vtt): {file}"));
+    }
+    let bytes = std::fs::read(p).map_err(|e| format!("Couldn't read {file}: {e}"))?;
+    let parsed =
+        subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse {file}: {e}"))?;
+    let text: String = parsed
+        .cues
+        .iter()
+        .take(60)
+        .map(|c| c.text.as_str())
+        .collect();
+    let japanese = japanese_ratio(&text) > 0.3;
+    {
+        let mut lib = lock(&core.library);
+        let e = lib.entry(path);
+        if !e.extra_subs.iter().any(|f| f == file) {
+            e.extra_subs.push(file.to_string());
+        }
+        core.save_library(&lib);
+    }
+    let mut prepared = prepare(core, path)?;
+    let id = prepared
+        .tracks
+        .iter()
+        .find(|t| t.path.as_deref() == Some(file))
+        .map(|t| t.id)
+        .ok_or_else(|| "The subtitle file was added but couldn't be loaded.".to_string())?;
+    // The new file takes the role its language says (remembered for next time).
+    {
+        let mut lib = lock(&core.library);
+        let e = lib.entry(path);
+        if japanese {
+            e.jp_sub_id = Some(id);
+            prepared.jp_sub_id = Some(id);
+        } else {
+            e.en_sub_id = Some(id);
+            prepared.en_sub_id = Some(id);
+        }
+        core.save_library(&lib);
+    }
+    Ok(prepared)
+}
+
+/// Add a subtitle file (e.g. dropped on the player) to this video; it becomes the Japanese or
+/// English track by its content. Returns the prepared media again.
+#[tauri::command]
+pub async fn add_subtitle_file(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    file: String,
+) -> Result<PreparedMedia, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || add_sub_file(&core, &path, &file))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+fn sync(
+    core: &Core,
+    path: &str,
+    sub_id: u32,
+    ref_sub_id: u32,
+) -> Result<crate::sync::SyncSummary, String> {
+    if sub_id == ref_sub_id {
+        return Err("Pick a different track as the timing reference.".into());
+    }
+    // Start from the unsynced file, so syncing twice doesn't stack shifts.
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(path).retimed.remove(&sub_id);
+    }
+    lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    let list = core.track(path, sub_id)?;
+    let reference = core.track(path, ref_sub_id)?;
+    let shifts = crate::sync::deltas(&reference.cues, &list.cues);
+    let summary = crate::sync::summarize(&shifts);
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(path).retimed.insert(sub_id, shifts);
+        core.save_library(&lib);
+    }
+    lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    Ok(summary)
+}
+
+/// Line a subtitle track up with a reference track (usually the English subtitles of the release);
+/// the result is remembered per file. Reload the track's cues afterwards.
+#[tauri::command]
+pub async fn sync_subtitles(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: u32,
+    ref_sub_id: u32,
+) -> Result<crate::sync::SyncSummary, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || sync(&core, &path, sub_id, ref_sub_id))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Forget the auto-sync of a track (back to the file's own timing).
+#[tauri::command]
+pub fn reset_sync(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: u32,
+) -> Result<(), String> {
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(&path).retimed.remove(&sub_id);
+        core.save_library(&lib);
+    }
+    lock(&core.parsed).remove(&(path, sub_id));
+    Ok(())
+}
+
 // ---- Settings ----------------------------------------------------------------------------------
 
 /// Mirrors `SettingsView` in src/lib/backend.ts: the stored settings plus facts about secrets/services.
@@ -1149,6 +1309,97 @@ mod tests {
         // The cue is now marked as mined for this file.
         let again = prepare(&core, &path).unwrap();
         assert_eq!(again.mined_cue_ids, vec![cue.id]);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// A Japanese SRT from "another release" (3 s late) is added, becomes the JP track, is
+    /// auto-synced against the English track, and the sync survives a re-prepare; reset undoes it.
+    #[test]
+    fn add_external_sub_and_auto_sync() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let sample = root.join("../samples/hi10p-ass.mkv");
+        let tools_dir = root.join("lib");
+        if !sample.is_file() || Tools::find(std::slice::from_ref(&tools_dir)).is_none() {
+            eprintln!("skipping: samples or bundled tools missing");
+            return;
+        }
+        let tmp = std::env::temp_dir().join(format!("kp-sync-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let core = Core::new(&[tools_dir], tmp.join("data"), tmp.join("cache"));
+        let path = sample
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        prepare(&core, &path).unwrap();
+        // Build the late SRT from the embedded JP dialogue.
+        let jp = core.track(&path, 1).unwrap();
+        let ts = |ms: i64| {
+            format!(
+                "{:02}:{:02}:{:02},{:03}",
+                ms / 3_600_000,
+                ms / 60_000 % 60,
+                ms / 1000 % 60,
+                ms % 1000
+            )
+        };
+        let srt: String = jp
+            .cues
+            .iter()
+            .filter(|c| c.kind == subtitles::CueKind::Dialogue)
+            .enumerate()
+            .map(|(i, c)| {
+                format!(
+                    "{}\n{} --> {}\n{}\n\n",
+                    i + 1,
+                    ts(c.start_ms + 3_000),
+                    ts(c.end_ms + 3_000),
+                    c.text
+                )
+            })
+            .collect();
+        let file = tmp.join("other-release.srt");
+        std::fs::write(&file, srt).unwrap();
+        let file = file.to_string_lossy().into_owned();
+
+        let p = add_sub_file(&core, &path, &file).unwrap();
+        let new_id = p
+            .tracks
+            .iter()
+            .find(|t| t.path.as_deref() == Some(file.as_str()))
+            .unwrap()
+            .id;
+        assert_eq!(
+            p.jp_sub_id,
+            Some(new_id),
+            "a Japanese file takes the JP role"
+        );
+        let before = core.track(&path, new_id).unwrap().cues[0].start_ms;
+
+        let s = sync(&core, &path, new_id, 2).unwrap();
+        assert!((s.median_shift_ms + 3_000).abs() <= 50, "{s:?}");
+        let after = core.track(&path, new_id).unwrap().cues[0].start_ms;
+        assert!((before - after - 3_000).abs() <= 50, "{before} -> {after}");
+
+        // Survives a fresh prepare (new parse from the file + stored shifts).
+        lock(&core.parsed).clear();
+        let again = prepare(&core, &path).unwrap();
+        assert_eq!(again.jp_sub_id, Some(new_id));
+        assert_eq!(core.track(&path, new_id).unwrap().cues[0].start_ms, after);
+
+        // Syncing twice doesn't stack; reset restores the file's timing.
+        sync(&core, &path, new_id, 2).unwrap();
+        assert_eq!(core.track(&path, new_id).unwrap().cues[0].start_ms, after);
+        {
+            let mut lib = lock(&core.library);
+            lib.entry(&path).retimed.remove(&new_id);
+        }
+        lock(&core.parsed).clear();
+        assert_eq!(core.track(&path, new_id).unwrap().cues[0].start_ms, before);
+        assert!(
+            add_sub_file(&core, &path, &path).is_err(),
+            "a video is not a subtitle file"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }
