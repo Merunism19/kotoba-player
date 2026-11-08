@@ -1,0 +1,31 @@
+/* Global base styles: transparent page (mpv draws the video underneath), reset, toasts, drop veil. */
+html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+* { box-sizing: border-box; }
+body {
+  font-family: var(--font-ui); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased;
+  user-select: none; -webkit-user-select: none;
+}
+button { font-family: inherit; color: inherit; }
+:focus-visible { outline: none; box-shadow: var(--focus); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.toasts {
+  position: fixed; right: 20px; bottom: 20px; z-index: var(--z-toast); display: grid; gap: 10px; justify-items: end; pointer-events: none;
+  max-width: min(440px, calc(100vw - 40px));
+}
+.toasts.above-controls { bottom: 112px; }
+.toast {
+  pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px 12px 14px;
+  border-radius: 14px; border: 1px solid var(--hairline-2); background: var(--glass-video-strong);
+  box-shadow: var(--shadow); font-size: 13px; line-height: 1.45; animation: toast-in 0.2s var(--ease-spring);
+}
+.toast.error { border-color: rgba(255, 107, 107, 0.45); }
+.toast-icon { color: var(--err); display: grid; padding-top: 1px; }
+.toast-msg { flex: 1; padding-top: 1px; }
+.toast-x { width: 24px; height: 24px; flex: none; color: var(--text-3); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+
+.drop-veil {
+  position: fixed; inset: 12px; z-index: var(--z-popup); display: grid; place-items: center; border-radius: var(--r-panel);
+  border: 2px dashed var(--accent); background: rgba(14, 16, 22, 0.7); font-size: 20px; font-weight: 600; pointer-events: none;
+}
