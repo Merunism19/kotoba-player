@@ -20,17 +20,20 @@ pub enum Backup {
 pub enum Store {
     /// Per-file state: resume position, subtitle offset, chosen tracks, last opened.
     Library,
+    /// User settings (Anki deck/tags…). Secrets are never stored here (OS keyring).
+    Settings,
 }
 
 impl Store {
     /// All stores, for backup/export and tests.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: &'static [Store] = &[Store::Library];
+    pub const ALL: &'static [Store] = &[Store::Library, Store::Settings];
 
     /// File name inside the app data directory.
     pub fn file_name(self) -> &'static str {
         match self {
             Store::Library => "library.json",
+            Store::Settings => "settings.json",
         }
     }
 
@@ -40,6 +43,8 @@ impl Store {
         match self {
             // Losing it loses every resume point and per-episode subtitle sync.
             Store::Library => Backup::Include,
+            // The user's choices; small and worth keeping.
+            Store::Settings => Backup::Include,
         }
     }
 

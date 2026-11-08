@@ -409,6 +409,84 @@ pub fn thumbnail(tools: &Tools, video: &Path, at_ms: u64, out: &Path) -> Result<
     Ok(())
 }
 
+/// Run ffmpeg writing to a temp file next to `out`, then rename (no half files in the cache).
+fn ffmpeg_to(tools: &Tools, out: &Path, args: &[String], what: &str) -> Result<(), MediaError> {
+    if let Some(dir) = out.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let ext = out.extension().and_then(|e| e.to_str()).unwrap_or("bin");
+    let tmp = out.with_extension(format!("part.{ext}"));
+    let res = quiet(&tools.ffmpeg)
+        .args(["-v", "error", "-nostdin", "-y"])
+        .args(args)
+        .arg(&tmp)
+        .output()?;
+    if !res.status.success() || !tmp.is_file() {
+        let err = String::from_utf8_lossy(&res.stderr);
+        let _ = std::fs::remove_file(&tmp);
+        return Err(MediaError::Extract(format!(
+            "{what}: {}",
+            err.lines().last().unwrap_or("ffmpeg failed")
+        )));
+    }
+    std::fs::rename(&tmp, out)?;
+    Ok(())
+}
+
+/// The video frame at `at_ms` (no subtitles), 640 px wide, as WebP — the card's screenshot.
+pub fn card_screenshot(
+    tools: &Tools,
+    video: &Path,
+    at_ms: u64,
+    out: &Path,
+) -> Result<(), MediaError> {
+    let args: Vec<String> = vec![
+        "-ss".into(),
+        format!("{:.3}", at_ms as f64 / 1000.0),
+        "-i".into(),
+        video.to_string_lossy().into_owned(),
+        "-frames:v".into(),
+        "1".into(),
+        "-vf".into(),
+        "scale=640:-2".into(),
+        "-c:v".into(),
+        "libwebp".into(),
+        "-quality".into(),
+        "82".into(),
+    ];
+    ffmpeg_to(tools, out, &args, "screenshot")
+}
+
+/// The audio between `from_ms` and `to_ms` of audio stream `audio_index` (0-based among audio
+/// streams) as stereo MP3 — the card's sentence audio.
+pub fn audio_clip(
+    tools: &Tools,
+    video: &Path,
+    audio_index: u32,
+    from_ms: u64,
+    to_ms: u64,
+    out: &Path,
+) -> Result<(), MediaError> {
+    let args: Vec<String> = vec![
+        "-ss".into(),
+        format!("{:.3}", from_ms as f64 / 1000.0),
+        "-to".into(),
+        format!("{:.3}", to_ms.max(from_ms + 100) as f64 / 1000.0),
+        "-i".into(),
+        video.to_string_lossy().into_owned(),
+        "-map".into(),
+        format!("0:a:{audio_index}"),
+        "-vn".into(),
+        "-ac".into(),
+        "2".into(),
+        "-c:a".into(),
+        "libmp3lame".into(),
+        "-q:a".into(),
+        "4".into(),
+    ];
+    ffmpeg_to(tools, out, &args, "sentence audio")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

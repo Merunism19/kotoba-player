@@ -7,6 +7,8 @@ mod audio_windows;
 mod commands;
 mod library;
 mod media;
+mod mining;
+mod settings;
 mod stores;
 
 use std::sync::Arc;
@@ -50,6 +52,10 @@ pub fn run() {
             commands::tokenize,
             commands::lookup_at,
             commands::word_audio,
+            commands::anki_status,
+            commands::draft_card,
+            commands::add_card,
+            commands::show_in_anki,
             commands::save_file_state,
             commands::save_position,
             commands::recent_files,

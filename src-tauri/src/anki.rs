@@ -190,6 +190,12 @@ impl Client {
         self.call("addNote", json!({ "note": n }))
     }
 
+    /// Create a deck if it doesn't exist yet (AnkiConnect leaves an existing deck untouched).
+    pub fn create_deck(&self, deck: &str) -> Result<(), String> {
+        self.call::<Value>("createDeck", json!({ "deck": deck }))
+            .map(|_| ())
+    }
+
     /// Show notes in Anki's browser.
     pub fn browse(&self, query: &str) -> Result<(), String> {
         self.call::<Value>("guiBrowse", json!({ "query": query }))
@@ -216,14 +222,14 @@ pub fn escape_query(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::TcpListener;
     use std::sync::{Arc, Mutex};
 
     /// Fake AnkiConnect: answers each action from `answers` (action → result) and records requests.
-    fn fake(answers: Vec<(&'static str, Value)>) -> (String, Arc<Mutex<Vec<Value>>>) {
+    pub(crate) fn fake(answers: Vec<(&'static str, Value)>) -> (String, Arc<Mutex<Vec<Value>>>) {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         // network-guard: ok fake AnkiConnect on 127.0.0.1 with a random port
         let base = format!("http://{}", l.local_addr().unwrap());
