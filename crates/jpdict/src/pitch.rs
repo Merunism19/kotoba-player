@@ -48,7 +48,7 @@ pub fn pitch_for(reading: &str, downstep: u32) -> Option<Pitch> {
     };
     Some(Pitch {
         downstep,
-        pattern,
+        pattern: pattern.to_string(),
         morae,
     })
 }
@@ -83,7 +83,17 @@ mod tests {
 
     #[test]
     fn patterns() {
-        let p = |r, d| pitch_for(r, d).map(|p| p.pattern);
+        let pattern = |r, d| pitch_for(r, d).map(|p| p.pattern);
+        let p = |r, d| pattern(r, d);
+        let p = |r, d| -> Option<&'static str> {
+            p(r, d).map(|s| match s.as_str() {
+                "heiban" => "heiban",
+                "atamadaka" => "atamadaka",
+                "nakadaka" => "nakadaka",
+                "odaka" => "odaka",
+                _ => "?",
+            })
+        };
         assert_eq!(p("さくら", 0), Some("heiban"));
         assert_eq!(p("いのち", 1), Some("atamadaka"));
         assert_eq!(p("あきらめる", 4), Some("nakadaka"));
