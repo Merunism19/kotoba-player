@@ -78,7 +78,7 @@ export default function SubtitleLayer() {
                 e.stopPropagation();
                 const r = e.currentTarget.getBoundingClientRect();
                 if (popupUnit === seg.unit) closePopup();
-                else openPopup({ unit: seg.unit!, anchor: { x: r.left + r.width / 2, top: r.top, width: r.width } });
+                else openPopup({ unit: seg.unit!, line: text, anchor: { x: r.left + r.width / 2, top: r.top, bottom: r.bottom, width: r.width } });
               }}
             >
               {seg.text}

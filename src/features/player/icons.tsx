@@ -36,3 +36,10 @@ export const IconClock = () => <Svg size={14}><circle cx="12" cy="12" r="9" /><p
 export const IconUpload = () => <Svg size={30}><path d="M12 15V4M7 9l5-5 5 5" /><path d="M20 15v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" /></Svg>;
 export const IconAlert = () => <Svg size={18}><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5M12 16h.01" /></Svg>;
 export const IconClose = () => <Svg size={16}><path d="M6 6l12 12M18 6L6 18" /></Svg>;
+export const IconSpeaker = () => <Svg size={19}><path d="M11 5L6 9H3v6h3l5 4V5z" /><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13" /></Svg>;
+export const IconPlus = () => <Svg size={16}><path d="M12 5v14M5 12h14" /></Svg>;
+export const IconChevron = ({ dir }: { dir: 'left' | 'right' | 'up' | 'down' }) => (
+  <Svg size={14}>
+    <path d={{ left: 'M15 18l-6-6 6-6', right: 'M9 18l6-6-6-6', up: 'M18 15l-6-6-6 6', down: 'M6 9l6 6 6-6' }[dir]} />
+  </Svg>
+);

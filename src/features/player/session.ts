@@ -308,7 +308,7 @@ export function hoverLine(over: boolean): void {
   }
 }
 
-export function openPopup(p: { unit: WordUnit; anchor: { x: number; top: number; width: number } }): void {
+export function openPopup(p: { unit: WordUnit; line: string; anchor: { x: number; top: number; bottom: number; width: number } }): void {
   const s = get();
   set({ popup: { ...p, resume: !s.pause || s.hoverPaused }, hoverPaused: false });
   if (!s.pause) void player.setPause(true);

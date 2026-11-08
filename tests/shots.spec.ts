@@ -111,3 +111,170 @@ test('behaviour: unsupported drop shows a toast; hotkeys move the line', async (
   await page.keyboard.press('s');
   await expect.poll(() => page.evaluate(() => (window as any).__kp.getTime())).toBeGreaterThanOrEqual(9);
 });
+
+// ---- dictionary popup ---------------------------------------------------------------------------
+
+/** Click a word and wait until the popup shows real content (not the skeleton). */
+async function openWordPopup(page: Page, word: string, at: number, query = '') {
+  await openPlayer(page, query, at);
+  await page.locator('.unit.word', { hasText: word }).first().click();
+  await expect(page.locator('.p-popup')).toBeVisible();
+}
+const settled = async (page: Page) => {
+  await expect(page.locator('.p-skel')).toHaveCount(0);
+  await page.waitForTimeout(450);
+};
+
+/** The popup box must not overlap the clicked word and must stay inside the window. */
+async function expectClearOfWord(page: Page, word: string) {
+  const pop = await page.locator('.p-popup').boundingBox();
+  const w = await page.locator('.unit.word.active', { hasText: word }).boundingBox();
+  const vp = page.viewportSize()!;
+  expect(pop && w).toBeTruthy();
+  expect(pop!.x).toBeGreaterThanOrEqual(0);
+  expect(pop!.y).toBeGreaterThanOrEqual(0);
+  expect(pop!.x + pop!.width).toBeLessThanOrEqual(vp.width);
+  expect(pop!.y + pop!.height).toBeLessThanOrEqual(vp.height);
+  const overlap = pop!.y < w!.y + w!.height && pop!.y + pop!.height > w!.y;
+  expect(overlap).toBe(false);
+}
+
+test('popup-verb-deinflected', async ({ page }) => {
+  await openWordPopup(page, '諦めない', 1.5);
+  await settled(page);
+  await expect(page.locator('.p-pitch-name')).toContainText('nakadaka');
+  await expect(page.locator('.p-tag')).toHaveText(['negative']);
+  await expect(page.locator('.p-badge.freq')).toContainText('#2,184');
+  await shot(page, 'popup-verb-deinflected');
+});
+
+test('popup-chain', async ({ page }) => {
+  await openWordPopup(page, '食べさせられなかった', 5.5);
+  await settled(page);
+  await expect(page.locator('.p-tag')).toHaveText(['causative', 'passive', 'negative', 'past']);
+  await shot(page, 'popup-chain');
+});
+
+test('popup-heiban', async ({ page }) => {
+  await openWordPopup(page, '夕焼け', 13.5);
+  await settled(page);
+  await expect(page.locator('.p-pitch-name')).toContainText('heiban');
+  await shot(page, 'popup-heiban');
+});
+
+test('popup-two-accents', async ({ page }) => {
+  await openWordPopup(page, '一緒', 9.5);
+  await settled(page);
+  await expect(page.locator('.p-pitch-row')).toHaveCount(2);
+  await shot(page, 'popup-two-accents');
+});
+
+test('popup-no-pitch', async ({ page }) => {
+  await openWordPopup(page, 'こんなに', 13.5);
+  await settled(page);
+  await expect(page.locator('.p-pitch')).toHaveCount(0);
+  await expect(page.locator('.p-audio')).toBeDisabled();
+  await shot(page, 'popup-no-pitch');
+});
+
+test('popup-multi-results', async ({ page }) => {
+  await openWordPopup(page, '諦めない', 1.5);
+  await settled(page);
+  await expect(page.locator('.p-tab')).toHaveText(['諦めない', '諦']);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.p-reading')).toHaveText('あきらめ');
+  await expect(page.locator('.p-inflect')).toHaveCount(0);
+  await page.waitForTimeout(200);
+  await shot(page, 'popup-multi-results');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('.p-tag')).toHaveText(['negative']);
+});
+
+test('popup-multi-entries', async ({ page }) => {
+  await openWordPopup(page, '会おう', 26.5);
+  await settled(page);
+  await expect(page.locator('.p-pager')).toContainText('1 / 2');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.p-pager')).toContainText('2 / 2');
+  await expect(page.locator('.p-headword')).toContainText('遭');
+  await shot(page, 'popup-multi-entries');
+});
+
+test('popup-not-found', async ({ page }) => {
+  await openWordPopup(page, 'だね', 5.5);
+  await settled(page);
+  await expect(page.locator('.p-empty-title')).toContainText('No dictionary entry');
+  await shot(page, 'popup-not-found');
+});
+
+test('popup-loading', async ({ page }) => {
+  await openPlayer(page, '&slowlookup=1', 1.5);
+  await page.locator('.unit.word', { hasText: '諦めない' }).click();
+  // Nothing visible for the first 150 ms (no flash), then the skeleton.
+  await expect(page.locator('.p-popup')).toHaveCount(0);
+  await expect(page.locator('.p-skel')).toBeVisible();
+  await page.waitForTimeout(500);
+  await shot(page, 'popup-loading');
+});
+
+test('popup-small-window', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 500 });
+  await openWordPopup(page, '諦めない', 1.5);
+  await settled(page);
+  await shot(page, 'popup-small-window');
+  await expectClearOfWord(page, '諦めない');
+});
+
+test('popup-1080p', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await openWordPopup(page, '食べさせられなかった', 5.5);
+  await settled(page);
+  await shot(page, 'popup-1080p');
+  await expectClearOfWord(page, '食べさせられなかった');
+});
+
+test('popup-bottom-flip', async ({ page }) => {
+  await openPlayer(page, '', 13.5);
+  // Move the subtitle line to the top of the window so the popup has no room above.
+  await page.addStyleTag({ content: '.p-subs { top: 90px !important; bottom: auto !important; }' });
+  await page.locator('.unit.word', { hasText: '綺麗' }).click();
+  await expect(page.locator('.p-popup.below')).toBeVisible();
+  await settled(page);
+  await shot(page, 'popup-bottom-flip');
+  await expectClearOfWord(page, '綺麗');
+});
+
+test('behaviour: R plays audio, clicking another word replaces the popup, Esc closes', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).__played = 0;
+    HTMLMediaElement.prototype.play = function () {
+      (window as any).__played++;
+      return Promise.resolve();
+    };
+  });
+  await openWordPopup(page, '諦めない', 1.5);
+  await settled(page);
+  await expect(page.locator('.p-audio')).toBeEnabled();
+  await page.keyboard.press('r');
+  await expect.poll(() => page.evaluate(() => (window as any).__played)).toBe(1);
+  await page.locator('.unit.word', { hasText: '決めた' }).click();
+  await expect(page.locator('.p-popup')).toHaveCount(1);
+  await expect(page.locator('.p-reading')).toHaveText('きめる');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.p-popup')).toHaveCount(0);
+});
+
+test('behaviour: lookup rejection shows an error toast and no popup', async ({ page }) => {
+  await openPlayer(page, '', 26.5);
+  await page.locator('.unit.word', { hasText: 'ありがとう' }).click();
+  await expect(page.locator('.toast.error')).toContainText('lookup failed');
+  await expect(page.locator('.p-popup')).toHaveCount(0);
+});
+
+test('behaviour: +N more expands the senses', async ({ page }) => {
+  await openWordPopup(page, '知らなかった', 13.5);
+  await settled(page);
+  await expect(page.locator('.p-senses li')).toHaveCount(3);
+  await page.getByRole('button', { name: '+2 more' }).click();
+  await expect(page.locator('.p-senses li')).toHaveCount(5);
+});

@@ -1,4 +1,4 @@
-/* Player screen styles: tinted (non-blurred) glass bars over the video, subtitle words, popup, seek bar, menus. */
+/* Player screen styles: tinted (non-blurred) glass bars over the video, subtitle words, seek bar, menus. */
 .p-stage { position: fixed; inset: 0; overflow: hidden; }
 .p-stage.idle { cursor: none; }
 
@@ -65,31 +65,6 @@
 }
 .p-en.blur { filter: blur(5px); transition: filter var(--dur); }
 .p-en.blur:hover { filter: none; }
-
-/* ---- popup ---- */
-.p-popup {
-  position: fixed; z-index: var(--z-popup); padding: 16px 18px 12px; border-radius: var(--r-panel);
-  background: var(--glass-video-strong); border: 1px solid var(--hairline-2); box-shadow: var(--shadow);
-  animation: pop 0.16s var(--ease-spring); transform-origin: var(--arrow-x) 100%;
-}
-.p-popup::after {
-  content: ''; position: absolute; bottom: -7px; left: var(--arrow-x); width: 14px; height: 14px; background: var(--glass-video-strong);
-  border-right: 1px solid var(--hairline-2); border-bottom: 1px solid var(--hairline-2); transform: translateX(-50%) rotate(45deg); clip-path: polygon(100% 0, 100% 100%, 0 100%);
-}
-@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
-.p-popup-body { overflow: auto; scrollbar-width: none; }
-.p-popup-close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; color: var(--text-3); }
-.p-headword { font: 700 40px / 1.1 var(--font-head); padding: 14px 24px 2px 0; }
-.p-headword ruby { ruby-position: over; ruby-align: center; }
-.p-headword rt { font: 500 13px var(--font-jp); letter-spacing: 0.04em; color: var(--pitch-nakadaka); }
-.p-base { margin-top: 8px; font-size: 12px; color: var(--text-2); }
-.p-base b { color: var(--text); font: 500 14px var(--font-jp); margin-left: 4px; }
-.p-note {
-  margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; font-size: 13px; color: var(--text-2);
-  background: rgba(255, 255, 255, 0.04); border: 1px dashed var(--hairline-2);
-}
-.p-kbd { margin-top: 10px; font-size: 11px; color: var(--text-3); text-align: right; }
-.p-kbd kbd { font: inherit; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--hairline-2); color: var(--text-2); }
 
 /* ---- seek bar ---- */
 .p-seek { position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
