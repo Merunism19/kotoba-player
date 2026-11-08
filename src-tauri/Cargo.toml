@@ -29,5 +29,9 @@ thiserror = "2"
 base64 = "0.22"
 subtitles = { version = "0.1.0", path = "../crates/subtitles" }
 jptext = { version = "0.1.0", path = "../crates/jptext" }
+ureq = { version = "3", default-features = false, features = ["json"] }
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62", features = ["Media_Core", "Media_SpeechSynthesis", "Storage_Streams", "Foundation", "Foundation_Collections"] }
 
 

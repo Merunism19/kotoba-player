@@ -15,7 +15,7 @@ const ALLOWED_HOSTS = [
 // Hosts allowed only in files whose path contains the given word.
 const FILE_SCOPED_HOSTS = { 'api-free.deepl.com': 'deepl', 'api.deepl.com': 'deepl' };
 // Files whose path contains one of these words may use an HTTP client (AnkiConnect is loopback, DeepL is opt-in).
-const CLIENT_FILE_WORDS = ['deepl', 'anki'];
+const CLIENT_FILE_WORDS = ['deepl', 'anki', 'voicevox', 'ollama'];
 // HTTP client usage patterns.
 const CLIENT_RE = /\b(fetch\s*\(|XMLHttpRequest|new\s+WebSocket|axios|reqwest|ureq|hyper::|isahc|attohttpc|tauri_plugin_http|sendBeacon)/;
 const URL_RE = /https?:\/\/[^\s"'`)<>\]\\]+/g;
