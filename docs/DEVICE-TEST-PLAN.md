@@ -21,6 +21,11 @@ One ordered list of checks that need the owner's machine. Every PR adds its chec
 - [ ] Install the Japanese speech voice (Windows Settings → Time & language → Speech → Add voices → Japanese) and press 🔊 / R.
 - [ ] Optional: install and start VOICEVOX — 🔊 then uses it (credit shown in the tooltip).
 
+## v0.4.0 (Phase 3 Anki mining)
+- [ ] Anki open with AnkiConnect: click a word → Add to Anki → the preview matches what lands in Anki (desktop, dark + light).
+- [ ] The card plays the line's audio; the screenshot is the right frame; hover shows readings; on the phone a tap does.
+- [ ] Adding the same word again shows "Already in Anki"; Shift+click adds without the preview.
+
 ## Per release (fill in as features land)
 - [ ] Open a Hi10P H.264 MKV, an HEVC 10-bit MKV and an MP4; each plays, seeks, fullscreens.
 - [ ] Embedded JP subs appear in time; Z/X offset moves them; English line shows under it.

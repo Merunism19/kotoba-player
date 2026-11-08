@@ -72,5 +72,7 @@ export function htmlToText(html: string): string {
 /** A full HTML page around rendered card HTML, with the card CSS; `night` turns on Anki's night mode classes. */
 export function cardDocument(body: string, css: string, night: boolean): string {
   const cls = night ? 'card nightMode night_mode' : 'card';
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body class="${cls}"><div class="card" id="kt-root">${body}</div></body></html>`;
+  // color-scheme makes the iframe's own scrollbars dark in night mode (they were bright white).
+  const scheme = night ? 'dark' : 'light';
+  return `<!doctype html><html style="color-scheme:${scheme}"><head><meta charset="utf-8"><meta name="color-scheme" content="${scheme}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body class="${cls}"><div class="card" id="kt-root">${body}</div></body></html>`;
 }
