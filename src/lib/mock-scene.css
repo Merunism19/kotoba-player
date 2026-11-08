@@ -1,0 +1,21 @@
+/* Placeholder frame behind the transparent page in mock mode; `.bright` makes a near-white frame to test text contrast. */
+.mock-scene {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden;
+  background: linear-gradient(180deg, #1b1f4a 0%, #4b3b78 32%, #c46b8e 58%, #f3a774 74%, #f7c98b 82%);
+}
+.mock-scene.bright { background: linear-gradient(180deg, #f4f1ea, #fff7e6 60%, #ffe9c2); }
+.mock-scene.bright > *:not(.sun) { display: none; }
+.mock-scene .sun {
+  position: absolute; left: 62%; top: 52%; width: 16%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, #ffe7b0 0%, #ffc27a 55%, rgba(255, 194, 122, 0) 72%);
+}
+.mock-scene .star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: 0.7; }
+.mock-scene .m1, .mock-scene .m2, .mock-scene .m3 { position: absolute; left: 0; right: 0; bottom: 0; }
+.mock-scene .m1 { height: 42%; background: #5a3f6e; clip-path: polygon(0 60%, 12% 35%, 24% 52%, 38% 22%, 52% 48%, 63% 30%, 78% 55%, 90% 28%, 100% 45%, 100% 100%, 0 100%); }
+.mock-scene .m2 { height: 30%; background: #34264a; clip-path: polygon(0 40%, 15% 62%, 30% 30%, 46% 58%, 58% 38%, 72% 66%, 86% 40%, 100% 60%, 100% 100%, 0 100%); }
+.mock-scene .m3 { height: 16%; background: #1a1428; }
+.mock-scene .figure {
+  position: absolute; bottom: 16%; left: 28%; width: 7%; aspect-ratio: 1 / 2.4; background: #120d1c;
+  clip-path: polygon(38% 0, 62% 0, 70% 14%, 64% 22%, 86% 34%, 92% 70%, 78% 72%, 74% 100%, 26% 100%, 22% 72%, 8% 70%, 14% 34%, 36% 22%, 30% 14%);
+}
+.mock-scene .grain { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.45) 100%); }

@@ -12,17 +12,23 @@
     "ci:quick": "node scripts/ci.mjs --quick",
     "codemap": "node scripts/codemap.mjs",
     "ship": "node scripts/ship.mjs",
-    "fetch-deps": "node scripts/fetch-deps.mjs"
+    "fetch-deps": "node scripts/fetch-deps.mjs",
+    "shots": "playwright test"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/noto-sans-jp": "^5.3.1",
+    "@fontsource/zen-maru-gothic": "^5.3.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "tauri-plugin-libmpv-api": "0.3.2"
+    "tauri-plugin-libmpv-api": "0.3.2",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
