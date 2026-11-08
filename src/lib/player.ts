@@ -135,6 +135,8 @@ function createMpvPlayer(): PlayerApi {
       const opts = ['sid=no', 'secondary-sid=no', 'pause=no'];
       if (o.startSec > 0.5) opts.push(`start=${o.startSec.toFixed(3)}`);
       if (o.signsAssPath) opts.push(`sub-files-append=${escapeOpt(o.signsAssPath)}`);
+      // A newer load supersedes one still in flight: settle the old promise instead of leaving it hanging.
+      pending?.reject(new Error('Superseded by another file.'));
       const loaded = new Promise<void>((resolve, reject) => {
         pending = { resolve, reject };
         setTimeout(() => {
