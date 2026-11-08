@@ -458,6 +458,18 @@ test('settings-player', async ({ page }) => {
   await shot(page, 'settings-player-lower');
 });
 
+test('settings-dictionaries', async ({ page }) => {
+  await openPlayer(page, '&dicts=1');
+  await openSettingsPanel(page);
+  const sec = page.locator('.s-sec', { hasText: 'Dictionaries' });
+  await sec.scrollIntoViewIfNeeded();
+  await expect(sec.locator('.s-dicts li')).toHaveCount(2);
+  await page.waitForTimeout(200);
+  await shot(page, 'settings-dictionaries');
+  await sec.getByRole('button', { name: 'Remove JPDB frequency' }).click();
+  await expect(sec.locator('.s-dicts li')).toHaveCount(1);
+});
+
 test('settings-home', async ({ page }) => {
   await page.goto('/?mock=1&voicevox=1');
   await expect(page.locator('.card')).toHaveCount(3);

@@ -248,6 +248,23 @@ export interface SyncSummary {
   changed: number;
 }
 
+/** Result of importing a Yomitan dictionary. */
+export interface ImportSummary {
+  title: string;
+  revision: string;
+  kind: 'Terms' | 'Frequency' | 'Both' | 'Pitch';
+  terms: number;
+  frequencies: number;
+  pitches: number;
+}
+
+/** An installed (imported) dictionary. */
+export interface UserDictionary {
+  title: string;
+  kind: ImportSummary['kind'];
+  rows: number;
+}
+
 export interface Backend {
   /** Probe the file, find tracks (incl. external subs next to it), restore per-file state. */
   prepareMedia(path: string): Promise<PreparedMedia>;
@@ -288,6 +305,10 @@ export interface Backend {
   saveSettings(settings: Settings): Promise<Settings>;
   /** Store a DeepL key (checked with DeepL first; resolves "used / limit" text) or remove it (null). */
   setDeeplKey(key: string | null): Promise<string | null>;
+  /** Import a Yomitan dictionary .zip (terms, frequency list or pitch); replaces one with the same title. */
+  importDictionary(path: string): Promise<ImportSummary>;
+  userDictionaries(): Promise<UserDictionary[]>;
+  removeDictionary(title: string): Promise<void>;
 }
 
 const tauriBackend: Backend = {
@@ -311,6 +332,9 @@ const tauriBackend: Backend = {
   getSettings: () => invoke('get_settings'),
   saveSettings: (settings) => invoke('save_settings', { settings }),
   setDeeplKey: (key) => invoke('set_deepl_key', { key }),
+  importDictionary: (path) => invoke('import_dictionary', { path }),
+  userDictionaries: () => invoke('user_dictionaries'),
+  removeDictionary: (title) => invoke('remove_dictionary', { title }),
 };
 
 let current: Backend = tauriBackend;

@@ -114,3 +114,12 @@ select.s-input:disabled, .s-switch:disabled { opacity: 0.5; cursor: not-allowed;
 /* The gear sits in the home screen's corner. */
 .home-gear { position: fixed; top: 16px; right: 16px; z-index: calc(var(--z-video-ui) + 1); width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--hairline); background: var(--glass); backdrop-filter: var(--glass-blur); }
 .s-chips input:focus-visible { box-shadow: none; }
+
+/* Imported dictionaries list. */
+.s-dicts { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 8px; }
+.s-dicts li {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-md, 12px);
+  background: var(--fill, rgba(255, 255, 255, 0.04)); border: 1px solid var(--hairline);
+}
+.s-dicts li > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.s-dicts li b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

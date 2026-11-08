@@ -204,6 +204,17 @@ const backend: Backend = {
     };
     return stored;
   },
+  async importDictionary() {
+    const d = { title: 'JPDB frequency', revision: '2026-01', kind: 'Frequency' as const, terms: 0, frequencies: 172_000, pitches: 0 };
+    mockDicts.push({ title: d.title, kind: d.kind, rows: d.frequencies });
+    return d;
+  },
+  async userDictionaries() {
+    return [...mockDicts];
+  },
+  async removeDictionary(title: string) {
+    mockDicts = mockDicts.filter((d) => d.title !== title);
+  },
   async setDeeplKey(key) {
     await sleep(350);
     mockLog.deeplKeys.push(key);
@@ -212,6 +223,10 @@ const backend: Backend = {
     return key === null ? null : '12,345 / 500,000 characters used this month';
   },
 };
+
+let mockDicts: { title: string; kind: 'Terms' | 'Frequency' | 'Both' | 'Pitch'; rows: number }[] = mockParams.has('dicts')
+  ? [{ title: 'JPDB frequency', kind: 'Frequency', rows: 172_000 }, { title: 'Daijirin (JA-JA)', kind: 'Terms', rows: 230_000 }]
+  : [];
 
 export function installMockBackend(): void {
   setBackend(backend);

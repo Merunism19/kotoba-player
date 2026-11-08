@@ -73,10 +73,21 @@ impl Core {
                     .ok_or_else(|| {
                         "The dictionary is missing (run: node scripts/fetch-deps.mjs).".to_string()
                     })?;
-                jpdict::Dict::open(&path).map_err(|e| format!("Dictionary failed to open: {e}"))
+                let dict = jpdict::Dict::open(&path)
+                    .map_err(|e| format!("Dictionary failed to open: {e}"))?;
+                // Imported (Yomitan) dictionaries live in the app data dir, never in the bundle.
+                if let Err(e) = dict.attach_user_db(&self.user_dict_path()) {
+                    eprintln!("[kotoba] user dictionaries unavailable: {e}");
+                }
+                Ok(dict)
             })
             .as_ref()
             .map_err(Clone::clone)
+    }
+
+    /// The SQLite file holding imported Yomitan dictionaries.
+    fn user_dict_path(&self) -> PathBuf {
+        self.data_dir.join("user-dicts.sqlite")
     }
 
     fn tools(&self) -> Result<&Tools, String> {
@@ -1091,6 +1102,75 @@ pub fn reset_sync(
     }
     lock(&core.parsed).remove(&(path, sub_id));
     Ok(())
+}
+
+// ---- Imported dictionaries (Yomitan format) ----------------------------------------------------
+
+/// An installed user dictionary (mirrors `UserDictionary` in src/lib/backend.ts).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDictionary {
+    title: String,
+    kind: jpdict::ImportKind,
+    rows: usize,
+}
+
+/// Import a Yomitan dictionary .zip (terms, frequency or pitch); replaces one with the same title.
+#[tauri::command]
+pub async fn import_dictionary(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+) -> Result<jpdict::ImportSummary, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&path);
+        let is_zip = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+        if !is_zip || !p.is_file() {
+            return Err("Choose a Yomitan dictionary .zip file.".to_string());
+        }
+        let dict = core.dict()?;
+        dict.import_yomitan(p, &core.user_dict_path())
+            .map_err(|e| format!("Couldn't import the dictionary: {e}"))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Installed user dictionaries.
+#[tauri::command]
+pub async fn user_dictionaries(
+    core: tauri::State<'_, Arc<Core>>,
+) -> Result<Vec<UserDictionary>, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(core
+            .dict()?
+            .user_dictionaries()
+            .into_iter()
+            .map(|(title, kind, rows)| UserDictionary { title, kind, rows })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Remove an imported dictionary by title.
+#[tauri::command]
+pub async fn remove_dictionary(
+    core: tauri::State<'_, Arc<Core>>,
+    title: String,
+) -> Result<(), String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        core.dict()?
+            .remove_user_dictionary(&title)
+            .map_err(|e| format!("Couldn't remove the dictionary: {e}"))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
 }
 
 // ---- Settings ----------------------------------------------------------------------------------

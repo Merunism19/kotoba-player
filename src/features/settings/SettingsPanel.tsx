@@ -1,7 +1,8 @@
 /** Settings side panel (gear button, Ctrl+,): Anki, translation, subtitles, audio, appearance and about. Blurred glass on the home screen, tinted glass over the video. */
 import { useEffect, useRef, useState } from 'react';
 import { backend } from '../../lib/backend';
-import type { AnkiStatus, Settings } from '../../lib/backend';
+import type { AnkiStatus, Settings, UserDictionary } from '../../lib/backend';
+import { pickDictionaryZip } from '../../lib/platform';
 import { errMsg } from '../../lib/format';
 import { useApp } from '../../app/store';
 import { IconCheck, IconClose } from '../player/icons';
@@ -204,6 +205,72 @@ function AudioSection({ voicevox, voice }: { voicevox: boolean; voice: string | 
   );
 }
 
+const KIND_LABEL: Record<UserDictionary['kind'], string> = {
+  Terms: 'definitions',
+  Frequency: 'frequency list',
+  Both: 'definitions + frequency',
+  Pitch: 'pitch accents',
+};
+
+/** Yomitan dictionaries imported by the user: list, import, remove. */
+function DictionariesSection() {
+  const [dicts, setDicts] = useState<UserDictionary[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const refresh = () => backend.userDictionaries().then(setDicts).catch(() => setDicts([]));
+  useEffect(() => {
+    void refresh();
+  }, []);
+  const importOne = async () => {
+    const path = await pickDictionaryZip();
+    if (!path) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await backend.importDictionary(path);
+      const parts = [
+        r.terms && `${r.terms.toLocaleString()} entries`,
+        r.frequencies && `${r.frequencies.toLocaleString()} frequencies`,
+        r.pitches && `${r.pitches.toLocaleString()} pitch accents`,
+      ].filter(Boolean);
+      setMsg({ ok: true, text: `Imported “${r.title}”: ${parts.join(', ') || 'nothing usable'}.` });
+      await refresh();
+    } catch (e) {
+      setMsg({ ok: false, text: errMsg(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Dictionaries">
+      <p className="s-note">
+        JMdict (English) is built in. Add Yomitan-format dictionaries (.zip) for more definitions, pitch accents, or a
+        frequency list — that one shows “★ freq #…” in the popup.
+      </p>
+      {dicts && dicts.length > 0 && (
+        <ul className="s-dicts">
+          {dicts.map((d) => (
+            <li key={d.title}>
+              <div>
+                <b>{d.title}</b>
+                <span className="s-hint">{KIND_LABEL[d.kind]} · {d.rows.toLocaleString()} rows</span>
+              </div>
+              <button className="p-btn" aria-label={`Remove ${d.title}`} onClick={() => void backend.removeDictionary(d.title).then(refresh).catch((e) => setMsg({ ok: false, text: errMsg(e) }))}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button className="p-btn" disabled={busy} onClick={() => void importOne()}>
+        {busy ? <span className="p-spin small" /> : null}
+        {busy ? 'Importing…' : 'Import dictionary…'}
+      </button>
+      {msg && <div className={`s-status ${msg.ok ? 'ok' : 'err'}`}><i />{msg.text}</div>}
+    </Section>
+  );
+}
+
 function AppearanceSection({ accent }: { accent: Settings['accent'] }) {
   return (
     <Section title="Appearance">
@@ -282,6 +349,7 @@ export default function SettingsPanel() {
               <TranslationSection s={s} hasKey={view.hasDeeplKey} models={view.ollamaModels} />
               <SubtitlesSection s={s} />
               <AudioSection voicevox={view.voicevox} voice={view.japaneseVoice} />
+              <DictionariesSection />
               <AppearanceSection accent={s.accent} />
               <AboutSection attribution={view.attribution} />
             </>
