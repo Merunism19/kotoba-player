@@ -18,9 +18,11 @@
   --text-3: #7a7f8e;
 
   --accent: #ff7aa2;
-  --accent-soft: rgba(255, 122, 162, 0.16);
+  --accent-rgb: 255 122 162; /* space-separated r g b, so rgb(var(--accent-rgb) / .3) works anywhere */
+  --accent-soft: rgb(var(--accent-rgb) / 0.16);
   --accent-ink: #1a0d14;
   --accent-2: #8a9bff;
+  --accent-2-rgb: 138 155 255;
   --gold: #ffd27a;
   --ok: #4fd6a8;
   --err: #ff6b6b;
@@ -35,7 +37,7 @@
   --r-btn: 12px;
   --r-pill: 999px;
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  --shadow-accent: 0 8px 24px rgba(255, 122, 162, 0.35);
+  --shadow-accent: 0 8px 24px rgb(var(--accent-rgb) / 0.35);
   --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 
   --font-ui: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
@@ -51,3 +53,8 @@
   --z-modal: 40;
   --z-toast: 50;
 }
+
+/* Accent palettes (Settings > Appearance sets data-accent on <html>; sakura is the default above). */
+:root[data-accent='twilight'] { --accent: #8a9bff; --accent-rgb: 138 155 255; --accent-ink: #0d1022; --accent-2: #ff7aa2; --accent-2-rgb: 255 122 162; }
+:root[data-accent='matcha'] { --accent: #8fd694; --accent-rgb: 143 214 148; --accent-ink: #0b1a0e; --accent-2: #5ba8ff; --accent-2-rgb: 91 168 255; }
+:root[data-accent='sunset'] { --accent: #ffa94d; --accent-rgb: 255 169 77; --accent-ink: #1f1206; --accent-2: #ff6b6b; --accent-2-rgb: 255 107 107; }

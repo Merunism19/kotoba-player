@@ -1,6 +1,6 @@
 /** Global UI state (zustand): current screen, prepared media, cues, playback props, popup, toasts. */
 import { create } from 'zustand';
-import type { CardDraft, Cue, MineRequest, PreparedMedia, RecentItem, WordUnit } from '../lib/backend';
+import type { CardDraft, Cue, MineRequest, PreparedMedia, RecentItem, Settings, SettingsView, WordUnit } from '../lib/backend';
 
 export type EnMode = 'blur' | 'always' | 'hidden';
 export const EN_MODES: EnMode[] = ['blur', 'always', 'hidden'];
@@ -60,6 +60,16 @@ export interface AppState {
   offsetFlash: number;
   enMode: EnMode;
   pauseOnHover: boolean;
+  /** Subtitle size multiplier (settings). */
+  subScale: number;
+  /** Z/X step in ms (settings). */
+  offsetStepMs: number;
+  /** Everything from getSettings (null until loaded) and the Settings panel / transcript sidebar visibility. */
+  settingsView: SettingsView | null;
+  settingsOpen: boolean;
+  transcriptOpen: boolean;
+  /** An automatic subtitle sync is running. */
+  syncing: boolean;
   /** Playback was paused by hovering the subtitle line (so leaving resumes it). */
   hoverPaused: boolean;
   popup: PopupState | null;
@@ -99,6 +109,12 @@ export const useApp = create<AppState>(() => ({
   offsetFlash: 0,
   enMode: 'blur',
   pauseOnHover: true,
+  subScale: 1,
+  offsetStepMs: 100,
+  settingsView: null,
+  settingsOpen: false,
+  transcriptOpen: false,
+  syncing: false,
   hoverPaused: false,
   popup: null,
   mining: null,
@@ -109,5 +125,6 @@ export const useApp = create<AppState>(() => ({
   toasts: [],
 }));
 
+export type { Settings };
 export const set = useApp.setState;
 export const get = useApp.getState;

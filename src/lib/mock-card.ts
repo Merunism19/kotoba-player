@@ -170,6 +170,8 @@ export interface MockDraftInput {
   units: WordUnit[];
   /** Plain English translation ('' = none). */
   translation: string;
+  /** Where the translation came from (default: the English subtitles). */
+  source?: CardDraft['translationSource'];
   title: string;
   id: string;
   duplicates: number[];
@@ -202,7 +204,7 @@ export function mockDraft(i: MockDraftInput): CardDraft {
     screenshotUrl: screenshotUrl(),
     sentenceAudioUrl: beep(330, 0.5),
     wordAudioUrl: beep(494, 0.3),
-    translationSource: i.translation ? 'subtitles' : 'none',
+    translationSource: i.translation ? (i.source ?? 'subtitles') : 'none',
     duplicates: i.duplicates,
     deck: i.deck,
     decks: i.decks,

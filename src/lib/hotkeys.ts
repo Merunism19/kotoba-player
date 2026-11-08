@@ -21,6 +21,7 @@ export function installHotkeys(a: HotkeyActions): () => void {
   const onKey = (e: KeyboardEvent) => {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' && (t as HTMLInputElement).type !== 'range' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (t?.closest('[data-no-hotkeys]') && e.code !== 'Escape') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     let handled = true;
     switch (e.code) {
@@ -36,7 +37,7 @@ export function installHotkeys(a: HotkeyActions): () => void {
       case 'KeyX': a.offset(100); break;
       case 'KeyF': a.fullscreen(); break;
       case 'KeyE': a.cycleEn(); break;
-      case 'KeyT': a.transcript(); break; // reserved: transcript sidebar arrives in Phase 4
+      case 'KeyT': a.transcript(); break; 
       case 'Escape': a.escape(); break;
       default: handled = false;
     }
