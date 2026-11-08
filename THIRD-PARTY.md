@@ -1,0 +1,58 @@
+# Third-party software and data
+
+Kotoba Player bundles or builds on the components below. The About screen shows the same
+attributions. Licence texts of the Rust and JavaScript packages are listed by `node scripts/guards/licenses.mjs`
+against the allow-list in `docs/DESIGN.md` section 8.
+
+## Dictionary data
+
+### JMdict (English)
+
+This application uses the JMdict/EDICT dictionary files. These files are the property of the
+Electronic Dictionary Research and Development Group (EDRDG), and are used in conformance with the
+Group's licence: <https://www.edrdg.org/edrdg/licence.html>.
+
+- Source: <https://www.edrdg.org/jmdict/j_jmdict.html>, converted to JSON by
+  [jmdict-simplified](https://github.com/scriptin/jmdict-simplified) 3.6.2+20261026175559
+  (dictionary date 2026-10-26). SHA-256 of the downloaded file is pinned in `scripts/fetch-deps.mjs`.
+- Licence: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0), <https://creativecommons.org/licenses/by-sa/4.0/>.
+- Use: compiled by `crates/jpdict` (`build-dict`) into `src-tauri/lib/dict/jmdict.sqlite`. Entries are shown unchanged
+  except that part-of-speech and usage tags are expanded to plain English. The database is distributed under the
+  same CC BY-SA 4.0 terms.
+
+### Kanjium (pitch accents)
+
+- Source: <https://github.com/mifunetoshiro/kanjium>, commit `9ebca4589565c696e7c39e089e2e928ad65f678c`,
+  file `data/source_files/raw/accents.txt` (SHA-256 pinned in `scripts/fetch-deps.mjs`).
+- Licence: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0).
+- Use: merged into the same SQLite database; shown as pitch accent patterns in the dictionary popup.
+
+### UniDic
+
+- Source: NINJAL (National Institute for Japanese Language and Linguistics) UniDic, embedded through the
+  `lindera` crate (`embed-unidic`) for word segmentation of subtitle lines.
+- Licence: UniDic is tri-licensed (GPL-2.0, LGPL-2.1, BSD); this application uses it under the BSD terms.
+  Copyright (c) the National Institute for Japanese Language and Linguistics.
+
+## Media components (fetched by `scripts/fetch-deps.mjs`, not stored in the repository)
+
+### libmpv
+
+- mpv, built as `libmpv-2.dll` by [zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild) (LGPL variant, release 2026-10-30).
+- Licence: LGPL-2.1-or-later. The DLL is loaded dynamically and can be replaced by the user with another build.
+  Source code: <https://github.com/mpv-player/mpv>.
+- `libmpv-wrapper` v0.1.1 by [nini22P](https://github.com/nini22P/libmpv-wrapper): a small wrapper library loaded next to libmpv;
+  see that repository for its licence.
+
+### FFmpeg
+
+- FFmpeg n8.1.3 (`ffmpeg.exe`, `ffprobe.exe`), LGPL build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds).
+- Licence: LGPL-2.1-or-later. The executables are run as separate processes. Source code: <https://ffmpeg.org/>.
+
+## Rust libraries added for the dictionary
+
+| Crate | Licence | Note |
+| --- | --- | --- |
+| `rusqlite` (feature `bundled`) | MIT | SQLite bindings |
+| SQLite (compiled in by `libsqlite3-sys`) | Public domain | <https://sqlite.org/copyright.html> |
+| `serde`, `serde_json` | MIT OR Apache-2.0 | JSON |
