@@ -1,5 +1,15 @@
 /** The only module that talks to mpv (tauri-plugin-libmpv-api): init once, observe properties, load/seek/pause/volume/speed/audio; swappable for the mock in screenshots. */
-import { command, getProperty, init, listenEvents, observeProperties, setProperty } from 'tauri-plugin-libmpv-api';
+import { invoke } from '@tauri-apps/api/core';
+import { getProperty, listenEvents, observeProperties } from 'tauri-plugin-libmpv-api';
+
+// mpv is started and driven only through the app's guarded Rust commands (src-tauri/src/mpv_guard.rs):
+// fixed hardened options and an allowlist of commands/properties. The plugin's own init/command/
+// set_property are not permitted to the window (security review 2026-11-08); reads and events are.
+const init = (): Promise<void> => invoke('mpv_start');
+const command = (name: string, args: (string | number | boolean)[] = []): Promise<void> =>
+  invoke('mpv_command', { name, args });
+const setProperty = (name: string, value: string | number | boolean): Promise<void> =>
+  invoke('mpv_set', { name, value });
 
 /** Property changes the UI cares about (time in seconds, volume 0-100). */
 export interface PropChange {
@@ -53,7 +63,7 @@ const norm = (p: string) => p.replace(/[\\]/g, '/').toLowerCase();
 /** mpv option values may contain commas/colons: `%<byte length>%value` escapes them. */
 const escapeOpt = (v: string) => `%${new TextEncoder().encode(v).length}%${v}`;
 
-let mpvInit: Promise<string> | null = null;
+let mpvInit: Promise<void> | null = null;
 
 function createMpvPlayer(): PlayerApi {
   const handlers = new Set<PlayerHandlers>();
@@ -82,22 +92,9 @@ function createMpvPlayer(): PlayerApi {
 
   function startEvents(): Promise<void> {
     eventsStarted ??= (async () => {
-      mpvInit ??= init({
-        // Once per page: React dev mode mounts effects twice, and a second init/load raced the first.
-        initialOptions: {
-          vo: 'gpu-next',
-          hwdec: 'auto-safe',
-          'keep-open': 'yes',
-          'force-window': 'yes',
-          'sub-auto': 'no',
-          'sub-visibility': 'yes',
-          'secondary-sub-visibility': 'no',
-          slang: 'jpn,ja,jp',
-          alang: 'jpn,ja,jp',
-          'osd-level': '0',
-        },
-        observedProperties: OBSERVED,
-      });
+      // Once per page: React dev mode mounts effects twice, and a second init/load raced the first.
+      // Options and observed properties are fixed in Rust (mpv_guard.rs); OBSERVED below must match.
+      mpvInit ??= init();
       await mpvInit;
       await observeProperties(OBSERVED, ({ name, data }) => {
         if (data == null) return;

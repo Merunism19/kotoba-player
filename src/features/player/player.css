@@ -51,6 +51,8 @@
   background: var(--gold); box-shadow: 0 0 0 3px rgba(255, 210, 122, 0.22), 0 0 0.6em rgba(255, 210, 122, 0.85);
 }
 .unit.word {
+  /* A long line wraps between words, never inside one (知らなか|った looked broken). */
+  white-space: nowrap;
   padding: 0.04em 0.06em; margin: 0 -0.06em; border-radius: 0.3em; cursor: pointer;
   transition: background var(--dur-fast), box-shadow var(--dur-fast);
 }

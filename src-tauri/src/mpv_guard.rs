@@ -258,6 +258,7 @@ mod tests {
             ("run", vec![json!("cmd"), json!("/c"), json!("calc")]),
             ("subprocess", vec![json!(["calc"])]),
             ("load-script", vec![json!("C:/evil.lua")]),
+            // network-guard: ok a URL the guard must REFUSE (never fetched)
             ("loadfile", vec![json!("https://example.invalid/x.m3u8")]),
             ("loadfile", vec![json!("C:/Windows/notepad.exe")]),
             ("set", vec![json!("script-opts"), json!("x")]),

@@ -38,11 +38,16 @@ export function renderTemplate(tpl: string, note: Note, front = '', opts: Render
     const filled = (note[m[2]] ?? '').trim() !== '';
     out = out.slice(0, m.index) + ((m[1] === '#') === filled ? m[3] : '') + out.slice(m.index + m[0].length);
   }
-  out = out.replace(/\{\{FrontSide\}\}/g, () => front);
-  out = out.replace(/\{\{furigana:([A-Za-z]+)\}\}/g, (_, f: string) => decorate(f, furigana(note[f] ?? ''), opts));
-  out = out.replace(/\{\{([A-Za-z]+)\}\}/g, (_, f: string) => decorate(f, note[f] ?? '', opts));
-  if (/\{\{|\}\}/.test(out)) throw new Error('unrendered template syntax: ' + out.match(/\{\{[^}]*\}\}/)?.[0]);
-  return out;
+  // ONE pass over the template: text inserted from fields (e.g. a subtitle line containing "{{Meaning}}")
+  // is never scanned again, like Anki (security review 2026-11-08).
+  return out.replace(/\{\{(FrontSide|furigana:[A-Za-z]+|[A-Za-z]+)\}\}/g, (_, tag: string) => {
+    if (tag === 'FrontSide') return front;
+    if (tag.startsWith('furigana:')) {
+      const f = tag.slice('furigana:'.length);
+      return decorate(f, furigana(note[f] ?? ''), opts);
+    }
+    return decorate(tag, note[tag] ?? '', opts);
+  });
 }
 
 /** Front and back of a card from its templates. */

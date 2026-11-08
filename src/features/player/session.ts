@@ -56,6 +56,9 @@ async function loadCueData(path: string, jp: number | undefined, en: number | un
   return { jpCues, enCues, align };
 }
 
+/** Bumped by every open and by going home: a slower open that finishes later is discarded (review 2026-11-08). */
+let openToken = 0;
+
 /** Open a video: prepare, fetch cues, load in mpv (resuming), switch to the player screen. */
 export async function openFile(path: string): Promise<void> {
   if (get().opening) return;
@@ -63,11 +66,13 @@ export async function openFile(path: string): Promise<void> {
     toast(`Not a video file: ${basename(path)}`);
     return;
   }
+  const token = ++openToken;
   set({ opening: true });
   try {
     if (get().screen === 'player') await savePositionNow();
     const media = await backend.prepareMedia(path);
     const data = await loadCueData(path, media.jpSubId, media.enSubId);
+    if (token !== openToken) return; // the user went home (or opened something else) meanwhile
     set({
       media,
       ...data,
@@ -85,10 +90,11 @@ export async function openFile(path: string): Promise<void> {
     await player.loadFile(path, { startSec: (media.resumeMs ?? 0) / 1000, signsAssPath: media.signsAssPath });
     await player.setPause(false);
   } catch (e) {
+    if (token !== openToken) return;
     toast(errMsg(e));
     await goHome(false);
   } finally {
-    set({ opening: false });
+    if (token === openToken) set({ opening: false });
   }
 }
 
@@ -106,8 +112,10 @@ export async function handleDrop(paths: string[]): Promise<void> {
 }
 
 export async function goHome(save = true): Promise<void> {
+  // Cancels an open still in flight (its result is discarded) and lets the next open start.
+  openToken++;
   if (save) await savePositionNow();
-  set({ screen: 'home', popup: null, mining: null, hoverPaused: false, media: null, pause: true });
+  set({ screen: 'home', popup: null, mining: null, hoverPaused: false, media: null, pause: true, opening: false });
   try {
     await player.stop();
   } catch (e) {

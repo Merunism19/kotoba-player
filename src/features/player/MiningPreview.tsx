@@ -56,7 +56,19 @@ function CardFrame({ html, night, label }: { html: string; night: boolean; label
   }, [html]);
   useEffect(() => () => obs.current?.disconnect(), []);
 
-  return <iframe ref={ref} className="m-frame" title={label} srcDoc={srcDoc} style={{ height }} onLoad={attach} />;
+  // sandbox without allow-scripts: the card templates' own scripts never run here (they could reach the
+  // app's IPC otherwise); allow-same-origin lets this component wire the play buttons (review 2026-11-08).
+  return (
+    <iframe
+      ref={ref}
+      className="m-frame"
+      title={label}
+      srcDoc={srcDoc}
+      sandbox="allow-same-origin"
+      style={{ height }}
+      onLoad={attach}
+    />
+  );
 }
 
 const SOURCE_LABEL: Record<CardDraft['translationSource'], string> = {
@@ -116,8 +128,11 @@ function Modal({ m }: { m: MiningState }) {
     [draft, translation],
   );
 
+  // A ref, not the state: two fast Ctrl+Enter presses see the same stale `sending` (review 2026-11-08).
+  const sendingNow = useRef(false);
   const send = async () => {
-    if (sending || pending) return;
+    if (sendingNow.current || sending || pending) return;
+    sendingNow.current = true;
     setSending(true);
     try {
       const id = await backend.addCard(draft.draftId, { sentenceTranslation: translation.trim(), deck });
@@ -126,6 +141,7 @@ function Modal({ m }: { m: MiningState }) {
       toastAdded(id);
     } catch (e) {
       toast(errMsg(e));
+      sendingNow.current = false;
       setSending(false);
     }
   };
