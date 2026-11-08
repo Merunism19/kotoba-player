@@ -1,5 +1,6 @@
 //! Kotoba Player: Tauri entry point (plugins, the Rust core's state, commands).
 
+mod anki;
 mod audio;
 mod audio_voicevox;
 mod audio_windows;

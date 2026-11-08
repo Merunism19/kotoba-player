@@ -75,6 +75,7 @@ const backend: Backend = {
       enSubId: 2,
       resumeMs: 0,
       offsetMs,
+      minedCueIds: [],
     };
     return m;
   },
@@ -99,6 +100,17 @@ const backend: Backend = {
   },
   lookupAt: mockLookup,
   wordAudio: mockWordAudio,
+  // Phase 3 stubs; realistic mining mocks come with the mining UI.
+  async ankiStatus() {
+    return { connected: false, decks: [], error: 'mock' };
+  },
+  async draftCard() {
+    throw new Error('mock: draftCard not implemented yet');
+  },
+  async addCard() {
+    throw new Error('mock: addCard not implemented yet');
+  },
+  async showInAnki() {},
 };
 
 export function installMockBackend(): void {
