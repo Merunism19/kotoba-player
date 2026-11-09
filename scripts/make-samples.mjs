@@ -4,7 +4,7 @@
 // The bundled LGPL ffmpeg has no x264/x265 encoders, so pass a full (GPL) build; the samples are
 // local test data only (samples/ is gitignored) and are never shipped.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -83,3 +83,33 @@ run('hevc10.mkv', [...video, ...audio, ...subs, ...subMeta,
   '-c:a', 'libopus', '-b:a', '96k', '-c:s', 'copy']);
 run('h264.mp4', [...video, ...audio, '-map', '0:v', '-map', '1:a',
   '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac']);
+
+// ---- Edge cases seen in real releases (samples/edge/), all checked with scripts/dev/probe.sh ----
+mkdirSync(join(OUT, 'edge'), { recursive: true });
+const dub = ['-f', 'lavfi', '-i', 'sine=frequency=660:sample_rate=48000:duration=30'];
+// Dual audio (Japanese 440 Hz + English dub 660 Hz), an attached font, and a file name with a
+// comma and Japanese (mpv option escaping): the card's audio must come from the selected track.
+const font = ['C:/Windows/Fonts/arial.ttf'].find((f) => existsSync(f));
+run('edge/テスト, 第1話 [dual].mkv', [...video, ...audio, ...dub, ...subs,
+  '-map', '0:v', '-map', '1:a', '-map', '2:a', '-map', '3:s', '-map', '4:s',
+  '-metadata:s:a:0', 'language=jpn', '-metadata:s:a:1', 'language=eng', '-metadata:s:a:1', 'title=English dub',
+  '-metadata:s:s:0', 'language=jpn', '-metadata:s:s:1', 'language=eng',
+  '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-c:s', 'copy',
+  ...(font ? ['-attach', font, '-metadata:s:t', 'mimetype=application/x-truetype-font'] : [])]);
+// MP4 with untagged mov_text subtitles: Japanese must be recognised from the text itself.
+run('edge/movtext.mp4', [...video, ...audio, '-i', join(OUT, 'jp.ass'), '-map', '0:v', '-map', '1:a', '-map', '2:s',
+  '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-c:s', 'mov_text']);
+// No embedded subtitles; Ep02.ja.srt next to it (Shift_JIS, CRLF; written by the ffmpeg run below).
+run('edge/Ep02.mkv', [...video, ...audio, '-map', '0:v', '-map', '1:a',
+  '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac']);
+// ffmpeg converts the Japanese ASS to SRT; the bytes are then re-encoded to Shift_JIS by the
+// subtitles crate's own encoder in tests — here we only need a CP932 file, which iconv-lite is not
+// worth adding for: write it with PowerShell's encoder.
+const srtUtf8 = join(OUT, 'edge', 'Ep02.ja.utf8.srt');
+run('edge/Ep02.ja.utf8.srt', ['-i', join(OUT, 'jp.ass'), '-map', '0:s', '-c:s', 'srt']);
+const ps = spawnSync('powershell', ['-NoProfile', '-Command',
+  `$t = Get-Content -Raw -Encoding UTF8 '${srtUtf8}'; [IO.File]::WriteAllText('${join(OUT, 'edge', 'Ep02.ja.srt')}', ($t -replace '\\r?\\n', "\`r\`n"), [Text.Encoding]::GetEncoding(932))`]);
+if (ps.status !== 0) console.error(`could not write the Shift_JIS srt: ${ps.stderr}`);
+else console.log('made samples/edge/Ep02.ja.srt (Shift_JIS)');
+// The UTF-8 intermediate would otherwise be found as a second external track next to Ep02.mkv.
+unlinkSync(srtUtf8);
