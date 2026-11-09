@@ -19,7 +19,7 @@ One ordered list of checks that need the owner's machine. Every PR adds its chec
 ## v0.3.0 (Phase 2 dictionary)
 - [ ] Click words in a real episode: the popup finds whole words (conjugated verbs too) with meanings, reading and pitch.
 - [ ] Install the Japanese speech voice (Windows Settings → Time & language → Speech → Add voices → Japanese) and press 🔊 / R.
-- [ ] Optional: install and start VOICEVOX — 🔊 then uses it (credit shown in the tooltip).
+- [x] Optional: install and start VOICEVOX — 🔊 then uses it (credit shown in the tooltip). Verified 2026-11-08 with engine 0.26.0.
 
 ## v0.4.0 (Phase 3 Anki mining)
 - [x] Anki open with AnkiConnect: click a word → Add to Anki → the preview matches what lands in Anki (desktop dark checked 2026-11-08; light + phone still to check).

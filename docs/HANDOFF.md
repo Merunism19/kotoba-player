@@ -60,6 +60,8 @@ v1.0.1 — tooling/docs only since the v1.0.0 release (ship script: docs-only ch
 Verified with REAL Anki 26.8.1 + AnkiConnect (owner-approved, 2026-11-08): the release build mined 諦める from the
 sample into deck "Kotoba Test"; Anki's own rendering has ruby furigana, screenshot, sentence audio, pitch SVG,
 meanings and translation (screenshot: artifacts/probe/anki-back.png, local). The test note/deck are left for the owner.
+Word audio verified with the official VOICEVOX engine 0.26.0 (owner-approved test run, removed afterwards): 🔊 in the
+popup plays 四国めたん with the credit shown; the card preview carries word + sentence audio.
 All five phases built, merged to main (PRs #2–#5, merge commits) and released as v1.0.0:
 https://github.com/Merunism19/kotoba-player/releases/tag/v1.0.0 (installer `Kotoba Player_1.0.0_x64-setup.exe`).
 - Phase 4: settings drawer (Anki deck/tags, DeepL key in the Windows Credential Manager, Ollama model,
@@ -71,7 +73,7 @@ https://github.com/Merunism19/kotoba-player/releases/tag/v1.0.0 (installer `Koto
   ffmpeg, security + data-integrity review loop with all findings fixed (mpv driven only via `mpv_guard.rs`,
   strict CSP, sandboxed card preview, ffmpeg local-file inputs + timeouts, unique temp files, single-send
   drafts, safe store loading, Anki ownership check). Release build probed: CSP works, `run` refused.
-Not verified: real anime files, real Japanese voice/VOICEVOX,
+Not verified: real anime files, a Windows Japanese voice (VOICEVOX path verified),
 DeepL with a real key, AnkiDroid/AnkiMobile rendering — see DEVICE-TEST-PLAN.md.
 
 ## Next steps
