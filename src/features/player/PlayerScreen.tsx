@@ -66,7 +66,8 @@ export default function PlayerScreen() {
         escape: () => {
           if (get().settingsOpen) closeSettings();
           else if (get().popup) closePopup();
-          else void exitFullscreen();
+          // An open menu (speed, tracks) closes itself on Esc; don't also leave fullscreen.
+          else if (!document.querySelector('[role="menu"], .p-picker')) void exitFullscreen();
         },
         volume: (d) => setVolume(get().volume + d),
         activity: wake,

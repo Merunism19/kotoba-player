@@ -186,6 +186,9 @@ function PopupInner({ popup }: { popup: PopupState }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Typing in a field (Settings opened over the popup, a DeepL key…) must reach the field.
+      const tgt = e.target instanceof HTMLElement ? e.target : null;
+      if (tgt && (/^(INPUT|TEXTAREA|SELECT)$/.test(tgt.tagName) || tgt.isContentEditable || tgt.closest('[data-no-hotkeys]'))) return;
       const s = sel.current;
       const swallow = () => {
         e.preventDefault();

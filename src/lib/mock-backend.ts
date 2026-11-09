@@ -49,7 +49,15 @@ const UNSYNCED_MS = mockParams.has('unsynced') ? 2880 : 0;
 let lateMs = UNSYNCED_MS;
 let jpSubId = 1;
 let trackList = [...tracks];
-const lateCues = (): Cue[] => baseJpCues.map((c) => (c.kind === 'dialogue' ? { ...c, startMs: c.startMs + lateMs, endMs: c.endMs + lateMs } : c));
+const lateCues = (): Cue[] => {
+  const cues = baseJpCues.map((c) => (c.kind === 'dialogue' ? { ...c, startMs: c.startMs + lateMs, endMs: c.endMs + lateMs } : c));
+  // ?overlap=1: "明日、一緒に…" keeps showing 2.5 s into the next line (two speakers at once).
+  if (mockParams.has('overlap')) {
+    const c = cues.find((x) => x.text.startsWith('明日'));
+    if (c) c.endMs += 3_000;
+  }
+  return cues;
+};
 const jpCues = baseJpCues; // ids and text (timing comes from lateCues)
 const enCues: Cue[] = LINES.map(([a, b, , en], i): Cue => ({ id: i, startMs: a * 1000, endMs: b * 1000, text: en, kind: 'dialogue' }));
 
