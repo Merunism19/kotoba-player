@@ -44,6 +44,15 @@ Group's licence: <https://www.edrdg.org/edrdg/licence.html>.
 - `libmpv-wrapper` v0.1.1 by [nini22P](https://github.com/nini22P/libmpv-wrapper): a small wrapper library loaded next to libmpv;
   see that repository for its licence.
 
+### Microsoft Visual C++ runtime
+
+- `vcruntime140.dll` from the Visual C++ 2015–2022 Redistributable (copied by `scripts/fetch-deps.mjs` from the
+  Visual Studio Build Tools' `VC\Redist\MSVC\<version>\x64\Microsoft.VC143.CRT` folder; installed next to the
+  exe). `libmpv-wrapper.dll` needs it, and Windows doesn't include it.
+- Redistributed app-local, unmodified, as Microsoft's Visual Studio licence terms allow for its "Distributable
+  Code" (see `redist.txt` / <https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files>). It is a
+  system library in the sense of the GPL.
+
 ### FFmpeg
 
 - FFmpeg n8.1.3 (`ffmpeg.exe`, `ffprobe.exe` and their shared libraries `avcodec`, `avformat`, `avfilter`, `avdevice`,

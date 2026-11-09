@@ -305,7 +305,7 @@ C++").
 
 ```bash
 pnpm install
-node scripts/fetch-deps.mjs   # pinned libmpv, ffmpeg and the dictionary sources (SHA-256 checked); builds the dictionary database
+node scripts/fetch-deps.mjs   # pinned libmpv, ffmpeg and dictionary sources (SHA-256 checked), the VC++ runtime from your Build Tools; builds the dictionary database
 pnpm tauri dev                # run the app in development
 pnpm tauri build              # make the installer → target/release/bundle/nsis/
 node scripts/ci.mjs           # all checks: guards (licences, network, encoding), TypeScript, clippy, Rust tests, screenshot tests

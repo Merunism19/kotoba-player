@@ -1,6 +1,7 @@
 // Downloads the pinned third-party binaries (libmpv, libmpv-wrapper, ffmpeg/ffprobe), checks their SHA-256 and installs them into src-tauri/lib/.
 // Also fetches the dictionary sources (JMdict, Kanjium) into vendor-cache/dict-src/ and compiles them into src-tauri/lib/dict/jmdict.sqlite
-// with crates/jpdict's build-dict (rebuilt when a source hash or the builder changes).
+// with crates/jpdict's build-dict (rebuilt when a source hash or the builder changes), and copies the
+// Visual C++ runtime the wrapper needs into src-tauri/runtime/ (see ensureVcRuntime).
 //
 // Usage: node scripts/fetch-deps.mjs [--force]
 // Archives are cached in vendor-cache/ (gitignored). Extraction uses Windows' bundled bsdtar
@@ -8,7 +9,7 @@
 // below (url + sha256 from the GitHub release's digest), run with --force, test, commit.
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './lib/util.mjs'; // also puts ~/.cargo/bin on PATH
@@ -117,10 +118,45 @@ function ensureDict() {
   console.log(`dict OK: ${out.slice(ROOT.length + 1)} ${(statSync(out).size / 1e6).toFixed(1)} MB (cargo run + build ${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 }
 
+/**
+ * The Visual C++ runtime for libmpv-wrapper.dll (built with MSVC; it imports vcruntime140.dll, which
+ * Windows doesn't ship: PCs without the VC++ redistributable couldn't load the video engine).
+ * Copied app-local from the Build Tools' redistributable folder (Microsoft allows redistributing it)
+ * into src-tauri/runtime/, which the installer puts NEXT TO the exe: the plugin loads the wrapper with
+ * the default DLL search, which looks in the exe's folder, not in lib/. Everything else we bundle uses
+ * the UCRT that is part of Windows 10/11, and our exe links the VC runtime statically.
+ */
+function ensureVcRuntime() {
+  const out = join(ROOT, 'src-tauri', 'runtime', 'vcruntime140.dll');
+  const vswhere = join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+  const vs = existsSync(vswhere)
+    ? spawnSync(vswhere, ['-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'], { encoding: 'utf8' }).stdout.trim()
+    : '';
+  const redist = vs ? join(vs, 'VC', 'Redist', 'MSVC') : '';
+  // Newest toolset folder that has an x64 CRT (names are versions like 14.44.35112; skip "v143").
+  const src = (redist && existsSync(redist) ? readdirSync(redist) : [])
+    .filter((v) => /^\d+\.\d+\.\d+$/.test(v))
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    .flatMap((v) => readdirSync(join(redist, v, 'x64')).filter((d) => /^Microsoft\.VC\d+\.CRT$/.test(d)).map((d) => join(redist, v, 'x64', d, 'vcruntime140.dll')))
+    .find((p) => existsSync(p));
+  if (!src) {
+    console.error('vcruntime140.dll not found: install Visual Studio Build Tools with "Desktop development with C++" (also needed for Rust)');
+    process.exit(1);
+  }
+  if (existsSync(out) && sha256(out) === sha256(src)) {
+    console.log('vc runtime OK (up to date)');
+    return;
+  }
+  mkdirSync(dirname(out), { recursive: true });
+  copyFileSync(src, out);
+  console.log(`vc runtime OK: ${src.slice(redist.length + 1)} -> src-tauri/runtime/`);
+}
+
 const wanted = JSON.stringify(DEPS.map((d) => d.sha256));
 if (!force && existsSync(STAMP) && readFileSync(STAMP, 'utf8') === wanted &&
     DEPS.every((d) => Object.values(d.files).every((f) => existsSync(join(destDir(d), f))))) {
   console.log('deps OK (up to date)');
+  ensureVcRuntime();
   ensureDict();
   process.exit(0);
 }
@@ -156,4 +192,5 @@ for (const dep of DEPS) {
 }
 writeFileSync(STAMP, wanted);
 console.log('deps OK');
+ensureVcRuntime();
 ensureDict();
