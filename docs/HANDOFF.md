@@ -56,7 +56,10 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
-v1.0.1 — tooling/docs only since the v1.0.0 release (ship script: docs-only changes keep the version).
+v1.0.2 — tooling/docs only since the v1.0.0 release. Edge-case pass on the release build (2026-11-08), no bugs found:
+dual audio + attached font + a Japanese file name with a comma (card audio taken from the selected dub, measured
+660 Hz), untagged mov_text subs in MP4 (recognised as Japanese), external Shift_JIS `Ep.ja.srt`. Reproduce with
+`node scripts/make-samples.mjs <full ffmpeg>` → `samples/edge/`, then `scripts/dev/probe.sh`.
 Verified with REAL Anki 26.8.1 + AnkiConnect (owner-approved, 2026-11-08): the release build mined 諦める from the
 sample into deck "Kotoba Test"; Anki's own rendering has ruby furigana, screenshot, sentence audio, pitch SVG,
 meanings and translation (screenshot: artifacts/probe/anki-back.png, local). The test note/deck are left for the owner.
