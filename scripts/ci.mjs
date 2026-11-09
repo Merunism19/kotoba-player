@@ -26,7 +26,7 @@ const steps = [
   {
     name: 'deps',
     skip: () => !has('src-tauri/Cargo.toml') && 'no src-tauri',
-    check: () => (has('src-tauri/lib') ? null : 'run node scripts/fetch-deps.mjs first'),
+    check: () => (has('src-tauri/lib') && has('src-tauri/runtime/vcruntime140.dll') ? null : 'run node scripts/fetch-deps.mjs first'),
   },
   { name: 'cargo clippy', cmd: 'cargo', args: ['clippy', '-q', '--workspace', '--all-targets', '--', '-D', 'warnings'], slow: true, skip: () => !has('Cargo.toml') && 'no Cargo.toml' },
   { name: 'cargo test', cmd: 'cargo', args: ['test', '-q', '--workspace'], skip: () => !has('Cargo.toml') && 'no Cargo.toml' },

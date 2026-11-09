@@ -23,7 +23,8 @@ public repo starts with no PRs and only the v1.0.4 release.
 
 ## Build / test / ship
 - First time: `pnpm install`, `node scripts/fetch-deps.mjs` (pinned libmpv, wrapper, ffmpeg →
-  `src-tauri/lib/`, SHA-256 checked). Rust is at `%USERPROFILE%\.cargo\bin` (add to PATH in new shells).
+  `src-tauri/lib/`, SHA-256 checked; also copies `vcruntime140.dll` from the VS Build Tools redist into
+  `src-tauri/runtime/`; the installer puts it next to the exe). Rust is at `%USERPROFILE%\.cargo\bin` (add to PATH in new shells).
 - Run: `pnpm tauri dev`. Local CI: `node scripts/ci.mjs` (ends `CI OK`). Ship: `node scripts/ship.mjs`
   (ends `SHIP OK`). Details: `docs/WORKFLOW.md`.
 - See the running app without the owner: `pnpm dev` + `cargo build -p kotoba-player`, then
@@ -59,6 +60,9 @@ public repo starts with no PRs and only the v1.0.4 release.
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
+v1.0.5 — the installer ships the Visual C++ runtime (`vcruntime140.dll`) next to the exe: `libmpv-wrapper.dll`
+imports it and Windows doesn't include it, so on PCs without the VC++ redistributable the video engine couldn't
+load (this PC has it via the Build Tools, so it never showed here). Verified the running app loads the app-local copy.
 v1.0.4 — own app icon (speech bubble with 言; replaces Tauri's default; also the home-screen logo) and the
 installer always puts a desktop shortcut (owner request). Icon pipeline: DESIGN §5, WORKFLOW "App icon".
 v1.0.3 — long-session fixes after a 24-min episode stress test (`node scripts/make-episode.mjs`, `scripts/dev/stress.mjs`)
