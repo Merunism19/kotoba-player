@@ -56,6 +56,7 @@ export function installMockPlayer(): MockHooks {
       emit('speed', s);
     },
     async setAudio() {},
+    async reloadSubtitles() {},
   };
   setPlayer(api);
 

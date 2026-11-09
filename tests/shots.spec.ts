@@ -438,3 +438,158 @@ test('behaviour: Esc and backdrop click close the preview', async ({ page }) => 
   await expect(page.locator('.m-modal')).toHaveCount(0);
   expect((await mock(page)).added).toHaveLength(0);
 });
+
+// ---- Phase 4: settings, transcript, external subtitles, sync -------------------------------------
+
+type MockLog = { settingsSaved: any[]; deeplKeys: (string | null)[]; subFiles: string[]; syncs: any[]; resets: number[] };
+const mockLog = (page: Page) => page.evaluate(() => (window as any).__mock as MockLog);
+const openSettingsPanel = async (page: Page) => {
+  await page.getByRole('button', { name: /^Settings/ }).first().click();
+  await expect(page.locator('.s-panel')).toBeVisible();
+  await page.waitForTimeout(350);
+};
+
+test('settings-player', async ({ page }) => {
+  await openPlayer(page);
+  await openSettingsPanel(page);
+  await shot(page, 'settings-player');
+  await page.locator('.s-body').evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await page.waitForTimeout(200);
+  await shot(page, 'settings-player-lower');
+});
+
+test('settings-dictionaries', async ({ page }) => {
+  await openPlayer(page, '&dicts=1');
+  await openSettingsPanel(page);
+  const sec = page.locator('.s-sec', { hasText: 'Dictionaries' });
+  await sec.scrollIntoViewIfNeeded();
+  await expect(sec.locator('.s-dicts li')).toHaveCount(2);
+  await page.waitForTimeout(200);
+  await shot(page, 'settings-dictionaries');
+  await sec.getByRole('button', { name: 'Remove JPDB frequency' }).click();
+  await expect(sec.locator('.s-dicts li')).toHaveCount(1);
+});
+
+test('settings-home', async ({ page }) => {
+  await page.goto('/?mock=1&voicevox=1');
+  await expect(page.locator('.card')).toHaveCount(3);
+  await openSettingsPanel(page);
+  await shot(page, 'settings-home');
+});
+
+test('settings-deepl-saved', async ({ page }) => {
+  await openPlayer(page);
+  await openSettingsPanel(page);
+  await page.getByLabel('DeepL API key').fill('abc123:fx');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.s-msg.ok')).toHaveText('12,345 / 500,000 characters used this month');
+  await expect(page.getByRole('button', { name: 'Remove', exact: true })).toBeVisible();
+  await page.locator('.s-body').evaluate((el) => (el.scrollTop = 250));
+  await page.waitForTimeout(200);
+  await shot(page, 'settings-deepl-saved');
+  // A rejected key shows the error and keeps the old state.
+  await page.getByLabel('DeepL API key').fill('bad');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.s-msg.err')).toContainText('rejected');
+});
+
+test('settings-accent-matcha', async ({ page }) => {
+  await openPlayer(page);
+  await page.keyboard.press('t');
+  await openSettingsPanel(page);
+  await page.getByRole('radio', { name: 'Matcha' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-accent', 'matcha');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.s-panel')).toHaveCount(0);
+  await page.locator('.unit.word', { hasText: '知らなかった' }).hover();
+  await page.waitForTimeout(300);
+  await shot(page, 'settings-accent-matcha');
+});
+
+test('transcript-open', async ({ page }) => {
+  await openPlayer(page);
+  await page.keyboard.press('t');
+  await expect(page.locator('.t-panel')).toBeVisible();
+  await expect(page.locator('.t-row')).toHaveCount(7);
+  await expect(page.locator('.t-row.active')).toContainText('夕焼け');
+  await page.waitForTimeout(450);
+  await shot(page, 'transcript-open');
+});
+
+test('transcript-search', async ({ page }) => {
+  await openPlayer(page, '&mined=1,3');
+  await page.keyboard.press('t');
+  await page.getByLabel('Search transcript').fill('tomorrow');
+  await expect(page.locator('.t-row')).toHaveCount(1);
+  await expect(page.locator('.t-row .t-mined')).toHaveCount(1);
+  await shot(page, 'transcript-search');
+});
+
+test('sync-toast', async ({ page }) => {
+  await openPlayer(page, '&unsynced=1', 18.5);
+  await page.getByRole('button', { name: /JP \+ EN/ }).click();
+  await page.getByRole('button', { name: 'Sync to English' }).click();
+  await expect(page.locator('.toast', { hasText: 'Synced: moved 2.88 s earlier' })).toBeVisible();
+  await expect(page.locator('.toast-action')).toHaveText('Undo');
+  await page.waitForTimeout(350);
+  await shot(page, 'sync-toast');
+});
+
+test('subtitle-scale-large', async ({ page }) => {
+  await openPlayer(page, '&scale=1.5');
+  await shot(page, 'subtitle-scale-large');
+});
+
+test('mine-preview-deepl', async ({ page }) => {
+  await openPreview(page, '&trsrc=deepl');
+  await expect(page.locator('.m-src')).toHaveText('machine translation (DeepL)');
+  await expect(page.locator('.m-src-note')).toContainText('Check it before sending');
+  await shot(page, 'mine-preview-deepl');
+});
+
+test('behaviour: settings are debounced, saved through saveSettings and applied', async ({ page }) => {
+  await openPlayer(page);
+  await page.keyboard.press('e'); // blur -> always, saved as a setting
+  await expect.poll(async () => (await mockLog(page)).settingsSaved.at(-1)?.enMode).toBe('always');
+  await page.keyboard.press('Control+,');
+  await expect(page.locator('.s-panel')).toBeVisible();
+  const before = (await mockLog(page)).settingsSaved.length;
+  await page.getByRole('switch', { name: 'Pause on hover' }).click();
+  await page.getByRole('radio', { name: '250 ms' }).click();
+  await page.getByLabel('Add a tag').fill('mined ');
+  await page.waitForTimeout(150);
+  expect((await mockLog(page)).settingsSaved.length).toBe(before); // still debounced
+  await expect.poll(async () => (await mockLog(page)).settingsSaved.length).toBe(before + 1);
+  const saved = (await mockLog(page)).settingsSaved.at(-1)!;
+  expect(saved).toMatchObject({ pauseOnHover: false, offsetStepMs: 250, ankiTags: ['anime', 'mined'], enMode: 'always' });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.s-panel')).toHaveCount(0);
+  // The offset step is used by X.
+  await page.keyboard.press('x');
+  expect(await page.locator('.p-chip.sync').innerText()).toContain('+0.25 s');
+});
+
+test('behaviour: T toggles the transcript and clicking a line seeks', async ({ page }) => {
+  await openPlayer(page, '', 1.5);
+  await expect(page.locator('.t-panel')).toHaveCount(0);
+  await page.keyboard.press('t');
+  await expect(page.locator('.t-panel')).toBeVisible();
+  await page.locator('.t-row').nth(3).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__kp.getTime())).toBeCloseTo(12.5, 0);
+  await page.keyboard.press('t');
+  await expect(page.locator('.t-panel')).toHaveCount(0);
+});
+
+test('behaviour: dropping a subtitle file adds it; sync can be undone', async ({ page }) => {
+  await openPlayer(page, '&unsynced=1');
+  await page.evaluate(() => (window as any).__kp.handleDrop(['C:/Subs/other-release.ja.srt']));
+  await expect(page.locator('.toast', { hasText: 'Added Japanese subtitles: other-release.ja.srt' })).toBeVisible();
+  expect((await mockLog(page)).subFiles).toEqual(['C:/Subs/other-release.ja.srt']);
+  await page.getByRole('button', { name: /JP \+ EN/ }).click();
+  await expect(page.getByText('other-release.ja.srt').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Sync to English' }).click();
+  await expect(page.locator('.toast', { hasText: 'Synced' })).toBeVisible();
+  await page.locator('.toast-action', { hasText: 'Undo' }).click();
+  await expect(page.locator('.toast', { hasText: 'Sync undone' })).toBeVisible();
+  expect((await mockLog(page)).resets).toEqual([4]);
+});

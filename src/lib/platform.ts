@@ -12,6 +12,13 @@ export async function pickVideo(): Promise<string | null> {
   return typeof path === 'string' ? path : null;
 }
 
+/** Ask for a Yomitan dictionary .zip. */
+export async function pickDictionaryZip(): Promise<string | null> {
+  if (isMock) return null;
+  const path = await open({ multiple: false, filters: [{ name: 'Yomitan dictionary', extensions: ['zip'] }] });
+  return typeof path === 'string' ? path : null;
+}
+
 /** Listen for files dropped on the window; `hover` reports whether a drag is over the window. */
 export async function onFileDrop(onDrop: (paths: string[]) => void, hover: (over: boolean) => void): Promise<() => void> {
   if (isMock) return () => {};

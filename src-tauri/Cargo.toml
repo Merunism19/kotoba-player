@@ -1,6 +1,6 @@
 [package]
 name = "kotoba-player"
-version = "0.4.0"
+version = "1.0.0"
 description = "Anime video player with click-to-look-up Japanese dictionary and Anki mining"
 authors = ["merunism"]
 edition = "2024"
@@ -20,7 +20,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-libmpv = "0.3.2"
@@ -29,8 +28,10 @@ thiserror = "2"
 base64 = "0.22"
 subtitles = { version = "0.1.0", path = "../crates/subtitles" }
 jptext = { version = "0.1.0", path = "../crates/jptext" }
-ureq = { version = "3", default-features = false, features = ["json"] }
+ureq = { version = "3", default-features = false, features = ["json", "native-tls"] }
 jpdict = { version = "0.1.0", path = "../crates/jpdict" }
+keyring = { version = "3", features = ["windows-native"] }
+alass-core = "2.0.0"
 
 [target."cfg(windows)".dependencies]
 windows = { version = "0.62", features = ["Media_Core", "Media_SpeechSynthesis", "Storage_Streams", "Foundation", "Foundation_Collections"] }

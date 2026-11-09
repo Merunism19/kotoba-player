@@ -215,6 +215,17 @@ Enter add to Anki (popup open) · R play word audio · E toggle English line.
 Each phase is a set of briefs (section 4 of AGENT-WORKFLOW). **H** = helper brief,
 **O** = orchestrator does it. Parallel helpers each get their own git worktree.
 
+**Status (2026-11-08): all five phases built.** Phase 0 merged (PR #1); Phases 1–3 are open PRs #2–#4
+(stacked, gated on local CI); Phases 4–5 are on `phase4-polish` → v1.0.0. Deviations from the plan
+below, decided on the way:
+- Word audio has no "local audio pack" source yet (VOICEVOX → Windows voice only).
+- Auto-sync uses the release's English subtitles as the timing reference (no audio-based sync);
+  the track's signs are rewritten with the same shifts and mpv reloads them.
+- ffmpeg ships as the LGPL **shared** build (~100 MB smaller); UniDic stays embedded (~194 MB in
+  the exe; the installer compresses to ~137 MB).
+- Security hardening after review: mpv is driven only through an allowlisting Rust layer
+  (`mpv_guard.rs`), strict CSP, sandboxed card preview, ffmpeg limited to local-file inputs.
+
 ### Phase 0 — Foundation and the risky spike (O, ~1 session)
 - Install Rust (rustup, MSVC toolchain), add mpv dev build (`libmpv-2.dll`) and ffmpeg/ffprobe
   binaries under `src-tauri/bin/` (scripted download with pinned versions + SHA-256 checks).

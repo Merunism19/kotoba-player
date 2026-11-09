@@ -207,3 +207,36 @@ fn cue_lookup() {
     assert_eq!(cue_index_at(&t.cues, -5), None);
     assert_eq!(cue_index_at(&[], 0), None);
 }
+
+#[test]
+fn signs_follow_retimed_cues() {
+    let t = parse(&fixture("anime.ass"), None).unwrap();
+    let original = t.signs_only_ass().unwrap();
+    // Unchanged times: same events, same tags (only time formatting may be normalized).
+    let same = t.signs_only_ass_timed(&t.cues).unwrap();
+    assert_eq!(same.lines().count(), original.lines().count());
+    // Shift every cue 2.5 s later (what an auto-sync does), then rebuild the signs.
+    let mut shifted = t.cues.clone();
+    for c in &mut shifted {
+        c.start_ms += 2_500;
+        c.end_ms += 2_500;
+    }
+    let out = t.signs_only_ass_timed(&shifted).unwrap();
+    let sign = t.cues.iter().find(|c| c.kind != CueKind::Dialogue).unwrap();
+    let reparsed = parse(out.as_bytes(), None).unwrap();
+    assert!(
+        reparsed
+            .cues
+            .iter()
+            .any(|c| c.start_ms == sign.start_ms + 2_500),
+        "a sign should start 2.5 s later:\n{out}"
+    );
+    // Override tags are kept exactly.
+    for line in original.lines().filter(|l| l.starts_with("Dialogue:")) {
+        let text = line.rsplit(',').next().unwrap();
+        assert!(out.contains(text), "lost text/tags: {text}");
+    }
+    // Not ASS → None, like signs_only_ass.
+    let srt = parse(&fixture("sample.srt"), None).unwrap();
+    assert!(srt.signs_only_ass_timed(&srt.cues).is_none());
+}

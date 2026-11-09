@@ -1,13 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Main window: core APIs, fullscreen, the open-file dialog, and READ-ONLY mpv access (property reads + events). mpv is started and driven through the app's own guarded commands (mpv_guard.rs), never the plugin's unrestricted command/set_property.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-set-fullscreen",
-    "opener:default",
-    "libmpv:default",
-    "dialog:default"
+    "dialog:allow-open",
+    "libmpv:allow-get-property"
   ]
 }

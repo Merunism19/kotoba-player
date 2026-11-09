@@ -107,9 +107,14 @@ fn mutation_fuzz() {
         let r = std::panic::catch_unwind(|| parse(&input, None));
         let took = t.elapsed();
         assert!(r.is_ok(), "parse panicked, seed {seed}");
+        // Linear budget (debug build): 50 ms + 0.5 ms per KB. Seed 1319 makes a 229 KB input that
+        // parses in ~60 ms debug / ~5 ms release, i.e. linear; a quadratic path would be seconds.
+        let budget =
+            Duration::from_millis(50) + Duration::from_micros(500 * (input.len() as u64 / 1024));
         assert!(
-            took < Duration::from_millis(50),
-            "parse took {took:?}, seed {seed}"
+            took < budget,
+            "parse took {took:?} (budget {budget:?}, {} bytes), seed {seed}",
+            input.len()
         );
         if let Ok(Ok(track)) = r {
             let _ = track.signs_only_ass();

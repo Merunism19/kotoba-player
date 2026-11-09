@@ -65,6 +65,8 @@ pub struct Track {
     header: String,
     events_format: String,
     sign_lines: Vec<String>,
+    /// Cue id of each entry of `sign_lines` (same order).
+    sign_ids: Vec<u32>,
     styles: Vec<String>,
 }
 
@@ -108,6 +110,57 @@ impl Track {
         }
         Some(out)
     }
+
+    /// Like [`Track::signs_only_ass`], but every sign/song event takes its Start/End from the cue
+    /// with the same id in `cues` (e.g. this track's cues after an auto-sync shifted them), so mpv
+    /// draws the signs in step with the retimed dialogue. Override tags stay exactly as authored.
+    pub fn signs_only_ass_timed(&self, cues: &[Cue]) -> Option<String> {
+        let base = self.signs_only_ass()?;
+        let fields: Vec<String> = self
+            .events_format
+            .split_once(':')
+            .map(|(_, f)| {
+                f.split(',')
+                    .map(|s| s.trim().to_ascii_lowercase())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let (Some(si), Some(ei)) = (
+            fields.iter().position(|f| f == "start"),
+            fields.iter().position(|f| f == "end"),
+        ) else {
+            return Some(base);
+        };
+        let mut out = String::with_capacity(base.len());
+        let head_end = base.len() - self.sign_lines.iter().map(|l| l.len() + 1).sum::<usize>();
+        out.push_str(&base[..head_end]);
+        for (line, id) in self.sign_lines.iter().zip(&self.sign_ids) {
+            let cue = cues.iter().find(|c| c.id == *id);
+            match (cue, line.split_once(':')) {
+                (Some(c), Some((kind, rest))) => {
+                    let mut parts: Vec<String> = rest
+                        .splitn(fields.len().max(1), ',')
+                        .map(str::to_string)
+                        .collect();
+                    if parts.len() > si.max(ei) {
+                        parts[si] = time::format_ass(c.start_ms);
+                        parts[ei] = time::format_ass(c.end_ms);
+                        // Keep the space Aegisub writes after "Dialogue:".
+                        let first = parts[0].trim_start().to_string();
+                        parts[0] = first;
+                        out.push_str(kind);
+                        out.push_str(": ");
+                        out.push_str(&parts.join(","));
+                    } else {
+                        out.push_str(line);
+                    }
+                }
+                _ => out.push_str(line),
+            }
+            out.push('\n');
+        }
+        Some(out)
+    }
 }
 
 fn detect(text: &str) -> Format {
@@ -134,19 +187,23 @@ pub fn parse(bytes: &[u8], hint: Option<Format>) -> Result<Track, Error> {
     let mut track = match format {
         Format::Ass => {
             let data = ass::parse_ass(&text);
-            let sign_lines = data
+            // Cue ids are positions in `data.cues` (assigned below, no re-sort), so each sign line
+            // keeps the id of its cue for retiming.
+            let (sign_lines, sign_ids): (Vec<String>, Vec<u32>) = data
                 .cues
                 .iter()
                 .zip(&data.raw)
-                .filter(|(c, _)| c.kind != CueKind::Dialogue)
-                .map(|(_, r)| r.clone())
-                .collect();
+                .enumerate()
+                .filter(|(_, (c, _))| c.kind != CueKind::Dialogue)
+                .map(|(i, (_, r))| (r.clone(), u32::try_from(i).unwrap_or(u32::MAX)))
+                .unzip();
             Track {
                 format,
                 cues: data.cues,
                 header: data.header,
                 events_format: data.events_format,
                 sign_lines,
+                sign_ids,
                 styles: data.styles,
             }
         }
@@ -159,6 +216,7 @@ pub fn parse(bytes: &[u8], hint: Option<Format>) -> Result<Track, Error> {
                 header: String::new(),
                 events_format: String::new(),
                 sign_lines: Vec::new(),
+                sign_ids: Vec::new(),
                 styles: Vec::new(),
             }
         }

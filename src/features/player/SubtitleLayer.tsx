@@ -50,6 +50,7 @@ export default function SubtitleLayer() {
   const cue = useCurrentCue();
   const en = useApp((s) => englishFor(s, cue));
   const enMode = useApp((s) => s.enMode);
+  const subScale = useApp((s) => s.subScale);
   const popupUnit = useApp((s) => s.popup?.unit);
   const mined = useApp((s) => (cue ? s.minedCueIds.includes(cue.id) : false));
   const text = cue?.text ?? '';
@@ -64,11 +65,12 @@ export default function SubtitleLayer() {
     for (const c of d.slice(Math.max(0, from), from + 2)) void getUnits(c.text);
   }, [cue]);
 
-  if (!cue) return <div className="p-subs" />;
+  const style = { ['--sub-scale' as string]: subScale };
+  if (!cue) return <div className="p-subs" style={style} />;
 
   const segs = toSegments(text, units);
   return (
-    <div className="p-subs">
+    <div className="p-subs" style={style}>
       <div className="p-jp" onMouseEnter={() => hoverLine(true)} onMouseLeave={() => hoverLine(false)} lang="ja">
         {segs.map((seg, i) =>
           seg.unit?.isWord ? (

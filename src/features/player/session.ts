@@ -1,11 +1,12 @@
 /** Playback session logic: opening files, position saving, line navigation, offset, track choices, toasts; glue between store, backend and mpv. */
 import { backend } from '../../lib/backend';
-import type { Cue, WordUnit } from '../../lib/backend';
+import type { Cue, PreparedMedia, SyncSummary, WordUnit } from '../../lib/backend';
 import { player } from '../../lib/player';
 import { activeIndex, lastStartedIndex, nextIndex } from '../../lib/cues';
-import { basename, errMsg, isVideoPath } from '../../lib/format';
+import { basename, errMsg, fmtOffset, isVideoPath } from '../../lib/format';
 import { isFullscreen, onFileDrop, pickVideo, setFullscreen } from '../../lib/platform';
 import { EN_MODES, get, set, useApp, type Toast } from '../../app/store';
+import { loadSettings, updateSettings } from '../settings/settings';
 
 let toastId = 1;
 
@@ -55,6 +56,9 @@ async function loadCueData(path: string, jp: number | undefined, en: number | un
   return { jpCues, enCues, align };
 }
 
+/** Bumped by every open and by going home: a slower open that finishes later is discarded (review 2026-11-08). */
+let openToken = 0;
+
 /** Open a video: prepare, fetch cues, load in mpv (resuming), switch to the player screen. */
 export async function openFile(path: string): Promise<void> {
   if (get().opening) return;
@@ -62,11 +66,13 @@ export async function openFile(path: string): Promise<void> {
     toast(`Not a video file: ${basename(path)}`);
     return;
   }
+  const token = ++openToken;
   set({ opening: true });
   try {
     if (get().screen === 'player') await savePositionNow();
     const media = await backend.prepareMedia(path);
     const data = await loadCueData(path, media.jpSubId, media.enSubId);
+    if (token !== openToken) return; // the user went home (or opened something else) meanwhile
     set({
       media,
       ...data,
@@ -84,16 +90,32 @@ export async function openFile(path: string): Promise<void> {
     await player.loadFile(path, { startSec: (media.resumeMs ?? 0) / 1000, signsAssPath: media.signsAssPath });
     await player.setPause(false);
   } catch (e) {
+    if (token !== openToken) return;
     toast(errMsg(e));
     await goHome(false);
   } finally {
-    set({ opening: false });
+    if (token === openToken) set({ opening: false });
   }
 }
 
+const SUB_EXT = new Set(['ass', 'ssa', 'srt', 'vtt']);
+const isSubtitlePath = (path: string) => SUB_EXT.has(basename(path).split('.').pop()?.toLowerCase() ?? '');
+
+/** Files dropped on the window: a subtitle file goes onto the video being played, anything else is opened as a video. */
+export async function handleDrop(paths: string[]): Promise<void> {
+  const first = paths[0];
+  if (!first) return;
+  if (isSubtitlePath(first)) {
+    if (get().screen === 'player' && get().media) await addSubtitleFile(first);
+    else toast('Open a video first, then drop the subtitle file on it.', 'info');
+  } else await openFile(first);
+}
+
 export async function goHome(save = true): Promise<void> {
+  // Cancels an open still in flight (its result is discarded) and lets the next open start.
+  openToken++;
   if (save) await savePositionNow();
-  set({ screen: 'home', popup: null, mining: null, hoverPaused: false, media: null, pause: true });
+  set({ screen: 'home', popup: null, mining: null, hoverPaused: false, media: null, pause: true, opening: false });
   try {
     await player.stop();
   } catch (e) {
@@ -110,7 +132,7 @@ export async function openDialog(): Promise<void> {
 /** Boot: start mpv, wire events, drag-and-drop, periodic saves, then open the startup file. */
 export async function startApp(): Promise<() => void> {
   const unsubs: (() => void)[] = [];
-  await refreshRecents();
+  await Promise.all([refreshRecents(), loadSettings()]);
   try {
     unsubs.push(
       await player.start({
@@ -133,7 +155,7 @@ export async function startApp(): Promise<() => void> {
     toast(`Could not start the video engine: ${errMsg(e)}`);
   }
 
-  unsubs.push(await onFileDrop((paths) => paths[0] && void openFile(paths[0]), (over) => set({ dragging: over })));
+  unsubs.push(await onFileDrop((paths) => void handleDrop(paths), (over) => set({ dragging: over })));
 
   // Save on pause, and every 5 s while playing.
   let lastPause = get().pause;
@@ -266,7 +288,8 @@ const EN_LABEL = { blur: 'blurred until hover', always: 'always shown', hidden: 
 
 export function cycleEnMode(): void {
   const next = EN_MODES[(EN_MODES.indexOf(get().enMode) + 1) % EN_MODES.length];
-  set({ enMode: next });
+  updateSettings({ enMode: next });
+  set({ enMode: next }); // also when settings never loaded
   toast(`English line: ${EN_LABEL[next]}`, 'info');
 }
 
@@ -293,6 +316,78 @@ export async function chooseAudio(id: number | null): Promise<void> {
   } catch (e) {
     toast(errMsg(e));
   }
+}
+
+/** Reload the cue lists of the chosen tracks after a sync or a new subtitle file. */
+async function reloadCues(media: PreparedMedia): Promise<void> {
+  set({ ...(await loadCueData(media.path, media.jpSubId, media.enSubId)) });
+}
+
+/** A subtitle file was dropped on the player: add it to this video, show its lines, say which language it became. */
+export async function addSubtitleFile(file: string): Promise<void> {
+  const before = get().media;
+  if (!before) return;
+  try {
+    const media = await backend.addSubtitleFile(before.path, file);
+    if (get().media?.path !== before.path) return; // the user moved on meanwhile
+    set({ media });
+    await reloadCues(media);
+    // mpv draws the signs of the JP track: when that changed, reload at the current position.
+    if (media.signsAssPath !== before.signsAssPath) {
+      const { time, pause } = get();
+      await player.loadFile(media.path, { startSec: time, signsAssPath: media.signsAssPath });
+      if (pause) await player.setPause(true);
+    }
+    const role = media.jpSubId !== before.jpSubId ? 'Japanese' : media.enSubId !== before.enSubId ? 'English' : '';
+    toast(`Added ${role ? role + ' ' : ''}subtitles: ${basename(file)}`, 'ok');
+  } catch (e) {
+    toast(errMsg(e));
+  }
+}
+
+/** "moved 2.88 s earlier", plus the spread when the track was shifted by different amounts in different places. */
+function describeSync(r: SyncSummary): string {
+  if (r.changed === 0 || Math.abs(r.medianShiftMs) < 5) return 'Already in sync';
+  const s = (Math.abs(r.medianShiftMs) / 1000).toFixed(2);
+  let msg = `Synced: moved ${s} s ${r.medianShiftMs < 0 ? 'earlier' : 'later'}`;
+  if (r.minShiftMs !== r.maxShiftMs) msg += ` (in parts, from ${fmtOffset(r.minShiftMs)} to ${fmtOffset(r.maxShiftMs)})`;
+  return msg;
+}
+
+/** Track picker: retime the Japanese subtitles against the English track; the toast offers Undo. */
+export async function syncToEnglish(): Promise<void> {
+  const { media, syncing } = get();
+  if (!media || syncing || media.jpSubId == null || media.enSubId == null) return;
+  const jp = media.jpSubId;
+  set({ syncing: true });
+  try {
+    const summary = await backend.syncSubtitles(media.path, jp, media.enSubId);
+    await reloadCues(media);
+    // The signs file was rewritten with the new timing; mpv re-reads it (no-op without signs).
+    if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
+    toast(describeSync(summary), 'ok', summary.changed ? { label: 'Undo', run: () => void undoSync(media.path, jp) } : undefined);
+  } catch (e) {
+    toast(`Could not sync: ${errMsg(e)}`);
+  } finally {
+    set({ syncing: false });
+  }
+}
+
+async function undoSync(path: string, jp: number): Promise<void> {
+  const media = get().media;
+  if (!media || media.path !== path) return;
+  try {
+    await backend.resetSync(path, jp);
+    await reloadCues(media);
+    if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
+    toast('Sync undone', 'info');
+  } catch (e) {
+    toast(errMsg(e));
+  }
+}
+
+export function toggleTranscript(): void {
+  set((s) => ({ transcriptOpen: !s.transcriptOpen }));
 }
 
 // ---- word popup --------------------------------------------------------------------------------

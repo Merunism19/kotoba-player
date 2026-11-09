@@ -8,10 +8,12 @@ import OffsetBadge from './OffsetBadge';
 import SubtitleLayer from './SubtitleLayer';
 import TrackPicker from './TrackPicker';
 import WordPopup from './WordPopup';
-import { IconBack, IconFullscreen } from './icons';
+import Transcript from './Transcript';
+import { IconBack, IconFullscreen, IconGear, IconList } from './icons';
+import { closeSettings, openSettings } from '../settings/settings';
 import {
   closePopup, cycleEnMode, exitFullscreen, goHome, nudgeOffset, replayLine, seekBy, seekLine, setVolume, syncLineNow,
-  toggleFullscreen, togglePause, wake,
+  toggleFullscreen, togglePause, toggleTranscript, wake,
 } from './session';
 import { get } from '../../app/store';
 import './player.css';
@@ -27,6 +29,7 @@ export default function PlayerScreen() {
   const title = useApp((s) => s.media?.title ?? '');
   const activity = useApp((s) => s.activity);
   const loading = useApp((s) => s.opening);
+  const transcriptOpen = useApp((s) => s.transcriptOpen);
   const [visible, setVisible] = useState(true);
   const root = useRef<HTMLDivElement>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -55,13 +58,14 @@ export default function PlayerScreen() {
         prevLine: () => seekLine(-1),
         nextLine: () => seekLine(1),
         replayLine,
-        offset: nudgeOffset,
+        offset: (d) => nudgeOffset(Math.sign(d) * get().offsetStepMs),
         syncLineNow,
         fullscreen: () => void toggleFullscreen(),
         cycleEn: cycleEnMode,
-        transcript: () => {}, // reserved for Phase 4
+        transcript: toggleTranscript,
         escape: () => {
-          if (get().popup) closePopup();
+          if (get().settingsOpen) closeSettings();
+          else if (get().popup) closePopup();
           else void exitFullscreen();
         },
         volume: (d) => setVolume(get().volume + d),
@@ -73,7 +77,7 @@ export default function PlayerScreen() {
   return (
     <div
       ref={root}
-      className={`p-stage${visible ? '' : ' idle'}`}
+      className={`p-stage${visible ? '' : ' idle'}${transcriptOpen ? ' t-open' : ''}`}
       onMouseMove={arm}
       onClick={(e) => {
         if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains('p-subs')) return;
@@ -88,10 +92,13 @@ export default function PlayerScreen() {
         <span className="p-spacer" />
         <OffsetBadge />
         <TrackPicker />
+        <button className={`p-iconbtn${transcriptOpen ? ' on' : ''}`} aria-label="Transcript (T)" title="Transcript (T)" aria-pressed={transcriptOpen} onClick={toggleTranscript}><IconList /></button>
+        <button className="p-iconbtn" aria-label="Settings (Ctrl+,)" title="Settings (Ctrl+,)" onClick={openSettings}><IconGear /></button>
         <button className="p-iconbtn" aria-label="Fullscreen (F)" title="Fullscreen (F)" onClick={() => void toggleFullscreen()}><IconFullscreen /></button>
       </div>
 
       {loading && <div className="p-loading">Opening…</div>}
+      {transcriptOpen && <Transcript />}
       <SubtitleLayer />
       <WordPopup />
       <MiningPreview />

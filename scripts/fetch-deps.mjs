@@ -37,13 +37,15 @@ const DEPS = [
     files: { 'bin/libmpv-wrapper.dll': 'libmpv-wrapper.dll' },
   },
   {
-    name: 'FFmpeg n8.1.3 (BtbN, LGPL, win64 static)',
-    url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-30-13-01/ffmpeg-n8.1.3-27-g8dca1586f4-win64-lgpl-8.1.zip',
-    sha256: 'bf346925ea085c262d15a5ceacd521ccbde52f4e3fc6a97f1bf273685fc1a539',
-    files: {
-      'ffmpeg-n8.1.3-27-g8dca1586f4-win64-lgpl-8.1/bin/ffmpeg.exe': 'ffmpeg.exe',
-      'ffmpeg-n8.1.3-27-g8dca1586f4-win64-lgpl-8.1/bin/ffprobe.exe': 'ffprobe.exe',
-    },
+    // Shared build: small exes + DLLs (~165 MB) instead of two static exes (~263 MB). ffplay is not installed.
+    name: 'FFmpeg n8.1.3 (BtbN, LGPL, win64 shared)',
+    url: 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-30-13-01/ffmpeg-n8.1.3-27-g8dca1586f4-win64-lgpl-shared-8.1.zip',
+    sha256: '21b96a5b382b031e89c1c91d7af8efc3db989c4c11bff27422a4c4ea24cf45ed',
+    files: Object.fromEntries(
+      ['ffmpeg.exe', 'ffprobe.exe', 'avcodec-62.dll', 'avdevice-62.dll', 'avfilter-11.dll', 'avformat-62.dll',
+        'avutil-60.dll', 'swresample-6.dll', 'swscale-9.dll']
+        .map((f) => [`ffmpeg-n8.1.3-27-g8dca1586f4-win64-lgpl-shared-8.1/bin/${f}`, f]),
+    ),
   },
   {
     name: 'JMdict English (jmdict-simplified 3.6.2+20261026175559, CC BY-SA 4.0)',

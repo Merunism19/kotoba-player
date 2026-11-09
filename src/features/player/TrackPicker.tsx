@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import type { Track } from '../../lib/backend';
 import { langLabel } from '../../lib/format';
 import { useApp } from '../../app/store';
-import { chooseAudio, chooseSub } from './session';
-import { IconCheck, IconHeadphones, IconSubs } from './icons';
+import { chooseAudio, chooseSub, syncToEnglish } from './session';
+import { IconCheck, IconHeadphones, IconSubs, IconSync } from './icons';
 
 const CODEC: Record<string, string> = { subrip: 'SRT', webvtt: 'VTT', ass: 'ASS', ssa: 'SSA' };
 
@@ -26,6 +26,7 @@ function Option({ on, children, onPick }: { on: boolean; children: React.ReactNo
 export default function TrackPicker() {
   const media = useApp((s) => s.media);
   const audioId = useApp((s) => s.audioId);
+  const syncing = useApp((s) => s.syncing);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -63,6 +64,13 @@ export default function TrackPicker() {
             <h3>Japanese subtitles</h3>
             {subs.map((t) => <Option key={t.id} on={media.jpSubId === t.id} onPick={() => void chooseSub('jp', t.id)}>{label(t)}</Option>)}
             <Option on={media.jpSubId == null} onPick={() => void chooseSub('jp', null)}>None</Option>
+            <button
+              className="p-sync" disabled={!jpOn || !enOn || syncing}
+              title={jpOn && enOn ? 'Retime the Japanese lines to match the English track' : 'Needs a Japanese and an English subtitle track'}
+              onClick={() => { setOpen(false); void syncToEnglish(); }}
+            >
+              <IconSync />{syncing ? 'Syncing…' : 'Sync to English'}
+            </button>
 
             <h3>English subtitles</h3>
             {subs.map((t) => <Option key={t.id} on={media.enSubId === t.id} onPick={() => void chooseSub('en', t.id)}>{label(t)}</Option>)}

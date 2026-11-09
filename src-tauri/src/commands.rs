@@ -73,10 +73,21 @@ impl Core {
                     .ok_or_else(|| {
                         "The dictionary is missing (run: node scripts/fetch-deps.mjs).".to_string()
                     })?;
-                jpdict::Dict::open(&path).map_err(|e| format!("Dictionary failed to open: {e}"))
+                let dict = jpdict::Dict::open(&path)
+                    .map_err(|e| format!("Dictionary failed to open: {e}"))?;
+                // Imported (Yomitan) dictionaries live in the app data dir, never in the bundle.
+                if let Err(e) = dict.attach_user_db(&self.user_dict_path()) {
+                    eprintln!("[kotoba] user dictionaries unavailable: {e}");
+                }
+                Ok(dict)
             })
             .as_ref()
             .map_err(Clone::clone)
+    }
+
+    /// The SQLite file holding imported Yomitan dictionaries.
+    fn user_dict_path(&self) -> PathBuf {
+        self.data_dir.join("user-dicts.sqlite")
     }
 
     fn tools(&self) -> Result<&Tools, String> {
@@ -115,9 +126,17 @@ impl Core {
             })?;
         let bytes =
             std::fs::read(&file).map_err(|e| format!("Couldn't read {}: {e}", file.display()))?;
-        let track = Arc::new(
-            subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse subtitles: {e}"))?,
-        );
+        let mut parsed =
+            subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse subtitles: {e}"))?;
+        // Apply a stored auto-sync (one shift per cue) when it still matches this file's cues.
+        let shifts = lock(&self.library)
+            .files
+            .get(path)
+            .and_then(|s| s.retimed.get(&sub_id).cloned());
+        if let Some(shifts) = shifts.filter(|s| s.len() == parsed.cues.len()) {
+            crate::sync::apply(&mut parsed.cues, &shifts);
+        }
+        let track = Arc::new(parsed);
         lock(&self.parsed).insert(key, track.clone());
         Ok(track)
     }
@@ -234,16 +253,62 @@ fn choose_subs(
     (jp, en.filter(|e| Some(*e) != jp))
 }
 
+/// Write the signs-only ASS for subtitle track `sub_id` (using its current, possibly synced, cue
+/// times) into the cache; returns its path, or None when the track has no signs.
+fn write_signs(core: &Core, path: &str, sub_id: u32) -> Option<String> {
+    let track = core.track(path, sub_id).ok()?;
+    let ass = track.signs_only_ass_timed(&track.cues)?;
+    let out = core.cache_dir.join("subs").join(format!(
+        "{}-s{sub_id}.signs.ass",
+        media::file_key(Path::new(path))
+    ));
+    // Temp + rename so mpv never reads a half-written file.
+    let tmp = out.with_extension(format!("{}.part", std::process::id()));
+    std::fs::write(&tmp, ass)
+        .and_then(|_| std::fs::rename(&tmp, &out))
+        .ok()
+        .map(|_| out.to_string_lossy().into_owned())
+}
+
 fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     let tools = core.tools()?;
     let video = Path::new(path);
-    let probe = media::probe(tools, video).map_err(|e| e.to_string())?;
+    let mut probe = media::probe(tools, video).map_err(|e| e.to_string())?;
+    // Subtitle files the user added for this video (read in place), after everything found by the probe.
+    let extra: Vec<String> = lock(&core.library)
+        .files
+        .get(path)
+        .map(|s| s.extra_subs.clone())
+        .unwrap_or_default();
+    for file in extra {
+        let known = probe
+            .tracks
+            .iter()
+            .any(|t| t.path.as_deref() == Some(file.as_str()));
+        if known || !Path::new(&file).is_file() {
+            continue;
+        }
+        let id = probe
+            .tracks
+            .iter()
+            .filter(|t| t.kind == media::TrackKind::Sub)
+            .count() as u32
+            + 1;
+        probe
+            .tracks
+            .push(media::external_track(Path::new(&file), id));
+    }
     let sub_cache = core.cache_dir.join("subs");
+    // A failed extraction (disk full, odd stream) must not stop the video from playing: continue
+    // with external subtitle files only (review 2026-11-08).
     let mut files: HashMap<u32, PathBuf> =
-        media::extract_subs(tools, video, &probe.tracks, &sub_cache)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .collect();
+        match media::extract_subs(tools, video, &probe.tracks, &sub_cache) {
+            Ok(v) => v.into_iter().collect(),
+            Err(e) => {
+                eprintln!("[kotoba] subtitle extraction failed: {e}");
+                HashMap::new()
+            }
+        };
     for t in probe.tracks.iter().filter(|t| t.external) {
         if let Some(p) = &t.path {
             files.insert(t.id, PathBuf::from(p));
@@ -269,15 +334,7 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     };
     let (jp_sub_id, en_sub_id) = choose_subs(core, path, &probe.tracks, remembered);
 
-    let signs_ass_path = jp_sub_id
-        .and_then(|id| core.track(path, id).ok().map(|t| (id, t)))
-        .and_then(|(id, t)| t.signs_only_ass().map(|ass| (id, ass)))
-        .and_then(|(id, ass)| {
-            let out = sub_cache.join(format!("{}-s{id}.signs.ass", media::file_key(video)));
-            std::fs::write(&out, ass)
-                .ok()
-                .map(|_| out.to_string_lossy().into_owned())
-        });
+    let signs_ass_path = jp_sub_id.and_then(|id| write_signs(core, path, id));
 
     {
         let mut lib = lock(&core.library);
@@ -413,7 +470,7 @@ pub struct FileStatePatch {
 }
 
 /// Remember the user's choices for this file.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_file_state(
     core: tauri::State<'_, Arc<Core>>,
     path: String,
@@ -441,7 +498,7 @@ fn thumb_path(core: &Core, video: &Path) -> PathBuf {
 }
 
 /// Remember the playback position; refreshes the card thumbnail in the background now and then.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_position(
     core: tauri::State<'_, Arc<Core>>,
     path: String,
@@ -467,9 +524,16 @@ pub fn save_position(
     };
     if refresh_thumb && let Some(tools) = core.tools.clone() {
         let out = thumb_path(&core, Path::new(&path));
+        let core = core.inner().clone();
+        // thumb_pos_ms was set above as a reservation (no duplicate runs); a failure clears it so
+        // the next save retries.
         std::thread::spawn(move || {
             if let Err(e) = media::thumbnail(&tools, Path::new(&path), position_ms, &out) {
                 eprintln!("[kotoba] thumbnail failed: {e}");
+                let mut lib = lock(&core.library);
+                if let Some(s) = lib.files.get_mut(&path) {
+                    s.thumb_pos_ms = None;
+                }
             }
         });
     }
@@ -477,11 +541,16 @@ pub fn save_position(
 }
 
 /// "Continue watching": unfinished files, most recent first.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn recent_files(core: tauri::State<'_, Arc<Core>>) -> Vec<RecentItem> {
-    let lib = lock(&core.library);
-    lib.continue_watching(20)
+    // Copy the entries out first: checking files (maybe on a slow drive) must not hold the lock.
+    let entries: Vec<(String, library::FileState)> = lock(&core.library)
+        .continue_watching(20)
         .into_iter()
+        .map(|(p, s)| (p.clone(), s.clone()))
+        .collect();
+    entries
+        .iter()
         .filter(|(p, _)| Path::new(p.as_str()).is_file())
         .map(|(p, s)| RecentItem {
             path: p.clone(),
@@ -517,6 +586,11 @@ pub fn startup_files() -> Vec<String> {
 // ---- Anki mining -------------------------------------------------------------------------------
 
 impl Core {
+    /// The app's cache folder (extracted subtitles, card media, thumbnails).
+    pub fn cache_dir(&self) -> &Path {
+        &self.cache_dir
+    }
+
     fn anki(&self) -> crate::anki::Client {
         crate::anki::Client::new(&self.anki_base, None)
     }
@@ -590,9 +664,22 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         .ok_or_else(|| "That subtitle line is no longer available.".to_string())?;
 
     // Media (each part degrades to "absent" instead of failing the whole card).
+    // Everything that changes the media is in the key (file identity, line, frame, offset, audio
+    // track): a reused name would also overwrite an earlier card's media in Anki (review 2026-11-08).
+    let offset_ms = req.offset_ms.clamp(-600_000, 600_000);
     let key = format!(
         "{:016x}",
-        media::fnv1a(format!("{}|{}|{}", req.path, req.cue_id, req.frame_ms).as_bytes())
+        media::fnv1a(
+            format!(
+                "{}|{}|{}|{}|{:?}",
+                media::file_key(video),
+                req.cue_id,
+                req.frame_ms,
+                offset_ms,
+                req.audio_id
+            )
+            .as_bytes()
+        )
     );
     let cards = core.cache_dir.join("cards");
     let shot_name = format!("kotoba_{key}.webp");
@@ -603,8 +690,8 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
             .is_ok();
     let audio_name = format!("kotoba_{key}_s.mp3");
     let clip = cards.join(&audio_name);
-    let from = (cue.start_ms + req.offset_ms - 250).max(0) as u64;
-    let to = (cue.end_ms + req.offset_ms + 250).max(0) as u64;
+    let from = cue.start_ms.saturating_add(offset_ms - 250).max(0) as u64;
+    let to = cue.end_ms.saturating_add(offset_ms + 250).max(0) as u64;
     let audio_index = req.audio_id.unwrap_or(1).saturating_sub(1);
     let clip_ok = clip.is_file()
         || media::audio_clip(tools, video, audio_index, from, to, &clip)
@@ -630,8 +717,8 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         })
         .collect();
 
-    // Translation: the aligned English subtitle lines (DeepL/Ollama fallbacks come in Phase 4).
-    let translation = req
+    // Translation: the aligned English subtitle lines (owner's rule: always first); else DeepL → Ollama.
+    let from_subs = req
         .en_sub_id
         .and_then(|en_id| core.track(&req.path, en_id).ok())
         .map(|en| {
@@ -649,6 +736,13 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
                 .join(" ")
         })
         .unwrap_or_default();
+    let (translation, translation_source) = if from_subs.trim().is_empty() {
+        let settings = lock(&core.settings).clone();
+        let (t, s) = crate::translate::fallback(&settings, &cue.text);
+        (t, s.as_str())
+    } else {
+        (from_subs, "subtitles")
+    };
 
     let title = lock(&core.library)
         .files
@@ -672,7 +766,7 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         "PitchClass",
         e.pitch
             .first()
-            .map(|p| p.pattern.clone())
+            .map(|p| mining::escape(&p.pattern))
             .unwrap_or_default(),
     );
     put("Meaning", mining::meaning_html(e, &req.senses));
@@ -720,7 +814,7 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
             .map(|n| format!("[sound:{n}]"))
             .unwrap_or_default(),
     );
-    let start_ms = (cue.start_ms + req.offset_ms).max(0) as u64;
+    let start_ms = cue.start_ms.saturating_add(offset_ms).max(0) as u64;
     put(
         "Source",
         mining::escape(&format!("{title} · {}", mining::clock(start_ms))),
@@ -770,11 +864,7 @@ fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
         screenshot_url: shot_ok.then(|| data_url_of(&shot, "image/webp")).flatten(),
         sentence_audio_url: clip_ok.then(|| data_url_of(&clip, "audio/mpeg")).flatten(),
         word_audio_url: word_audio.map(|w| w.url),
-        translation_source: if translation.is_empty() {
-            "none"
-        } else {
-            "subtitles"
-        },
+        translation_source,
         duplicates,
         deck,
         decks: status.decks,
@@ -802,19 +892,26 @@ pub struct CardEdits {
 }
 
 fn add(core: &Core, draft_id: &str, edits: CardEdits) -> Result<i64, String> {
-    let (path, cue_id, mut fields, media_files, tags) = {
-        let drafts = lock(&core.drafts);
-        let d = drafts
-            .get(draft_id)
-            .ok_or_else(|| "This card draft expired; click the word again.".to_string())?;
-        (
-            d.path.clone(),
-            d.cue_id,
-            d.fields.clone(),
-            d.media.clone(),
-            d.tags.clone(),
-        )
-    };
+    // Take the draft so a second "Send" of the same draft can't add it twice; put it back on failure
+    // so the user can retry (review 2026-11-08).
+    let draft = lock(&core.drafts).remove(draft_id).ok_or_else(|| {
+        "This card was already sent, or the draft expired; click the word again.".to_string()
+    })?;
+    let result = send_draft(core, &draft, edits);
+    if result.is_err() {
+        lock(&core.drafts).insert(draft_id.to_string(), draft);
+    }
+    result
+}
+
+fn send_draft(core: &Core, draft: &Draft, edits: CardEdits) -> Result<i64, String> {
+    let (path, cue_id, mut fields, media_files, tags) = (
+        draft.path.clone(),
+        draft.cue_id,
+        draft.fields.clone(),
+        draft.media.clone(),
+        draft.tags.clone(),
+    );
     if let Some(t) = edits.sentence_translation {
         fields.insert(
             "SentenceTranslation".into(),
@@ -837,7 +934,6 @@ fn add(core: &Core, draft_id: &str, edits: CardEdits) -> Result<i64, String> {
         fields,
         tags,
     })?;
-    lock(&core.drafts).remove(draft_id);
     {
         let mut lib = lock(&core.library);
         let e = lib.entry(&path);
@@ -881,6 +977,273 @@ pub async fn show_in_anki(
     tauri::async_runtime::spawn_blocking(move || {
         let ids: Vec<String> = note_ids.iter().map(|i| i.to_string()).collect();
         core.anki().browse(&format!("nid:{}", ids.join(",")))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+// ---- External subtitles and sync ---------------------------------------------------------------
+
+/// Subtitle file extensions the user may add.
+const SUB_FILE_EXTS: &[&str] = &["ass", "ssa", "srt", "vtt"];
+
+fn add_sub_file(core: &Core, path: &str, file: &str) -> Result<PreparedMedia, String> {
+    let p = Path::new(file);
+    let ext_ok = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| SUB_FILE_EXTS.iter().any(|x| x.eq_ignore_ascii_case(e)));
+    if !ext_ok || !p.is_file() {
+        return Err(format!("Not a subtitle file (.ass, .srt or .vtt): {file}"));
+    }
+    let bytes = std::fs::read(p).map_err(|e| format!("Couldn't read {file}: {e}"))?;
+    let parsed =
+        subtitles::parse(&bytes, None).map_err(|e| format!("Couldn't parse {file}: {e}"))?;
+    let text: String = parsed
+        .cues
+        .iter()
+        .take(60)
+        .map(|c| c.text.as_str())
+        .collect();
+    let japanese = japanese_ratio(&text) > 0.3;
+    {
+        let mut lib = lock(&core.library);
+        let e = lib.entry(path);
+        if !e.extra_subs.iter().any(|f| f == file) {
+            e.extra_subs.push(file.to_string());
+        }
+        core.save_library(&lib);
+    }
+    let mut prepared = prepare(core, path)?;
+    let id = prepared
+        .tracks
+        .iter()
+        .find(|t| t.path.as_deref() == Some(file))
+        .map(|t| t.id)
+        .ok_or_else(|| "The subtitle file was added but couldn't be loaded.".to_string())?;
+    // The new file takes the role its language says (remembered for next time).
+    {
+        let mut lib = lock(&core.library);
+        let e = lib.entry(path);
+        if japanese {
+            e.jp_sub_id = Some(id);
+            prepared.jp_sub_id = Some(id);
+        } else {
+            e.en_sub_id = Some(id);
+            prepared.en_sub_id = Some(id);
+        }
+        core.save_library(&lib);
+    }
+    Ok(prepared)
+}
+
+/// Add a subtitle file (e.g. dropped on the player) to this video; it becomes the Japanese or
+/// English track by its content. Returns the prepared media again.
+#[tauri::command]
+pub async fn add_subtitle_file(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    file: String,
+) -> Result<PreparedMedia, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || add_sub_file(&core, &path, &file))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+fn sync(
+    core: &Core,
+    path: &str,
+    sub_id: u32,
+    ref_sub_id: u32,
+) -> Result<crate::sync::SyncSummary, String> {
+    if sub_id == ref_sub_id {
+        return Err("Pick a different track as the timing reference.".into());
+    }
+    // Start from the unsynced file, so syncing twice doesn't stack shifts.
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(path).retimed.remove(&sub_id);
+    }
+    lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    let list = core.track(path, sub_id)?;
+    let reference = core.track(path, ref_sub_id)?;
+    let shifts = crate::sync::deltas(&reference.cues, &list.cues);
+    let summary = crate::sync::summarize(&shifts);
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(path).retimed.insert(sub_id, shifts);
+        core.save_library(&lib);
+    }
+    lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    // Signs of this track move with it (the UI then asks mpv to reload the file it shows).
+    let _ = write_signs(core, path, sub_id);
+    Ok(summary)
+}
+
+/// Line a subtitle track up with a reference track (usually the English subtitles of the release);
+/// the result is remembered per file. Reload the track's cues afterwards.
+#[tauri::command]
+pub async fn sync_subtitles(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: u32,
+    ref_sub_id: u32,
+) -> Result<crate::sync::SyncSummary, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || sync(&core, &path, sub_id, ref_sub_id))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Forget the auto-sync of a track (back to the file's own timing).
+#[tauri::command(async)]
+pub fn reset_sync(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: u32,
+) -> Result<(), String> {
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(&path).retimed.remove(&sub_id);
+        core.save_library(&lib);
+    }
+    lock(&core.parsed).remove(&(path.clone(), sub_id));
+    let _ = write_signs(&core, &path, sub_id);
+    Ok(())
+}
+
+// ---- Imported dictionaries (Yomitan format) ----------------------------------------------------
+
+/// An installed user dictionary (mirrors `UserDictionary` in src/lib/backend.ts).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDictionary {
+    title: String,
+    kind: jpdict::ImportKind,
+    rows: usize,
+}
+
+/// Import a Yomitan dictionary .zip (terms, frequency or pitch); replaces one with the same title.
+#[tauri::command]
+pub async fn import_dictionary(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+) -> Result<jpdict::ImportSummary, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&path);
+        let is_zip = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+        if !is_zip || !p.is_file() {
+            return Err("Choose a Yomitan dictionary .zip file.".to_string());
+        }
+        let dict = core.dict()?;
+        dict.import_yomitan(p, &core.user_dict_path())
+            .map_err(|e| format!("Couldn't import the dictionary: {e}"))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Installed user dictionaries.
+#[tauri::command]
+pub async fn user_dictionaries(
+    core: tauri::State<'_, Arc<Core>>,
+) -> Result<Vec<UserDictionary>, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(core
+            .dict()?
+            .user_dictionaries()
+            .into_iter()
+            .map(|(title, kind, rows)| UserDictionary { title, kind, rows })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Remove an imported dictionary by title.
+#[tauri::command]
+pub async fn remove_dictionary(
+    core: tauri::State<'_, Arc<Core>>,
+    title: String,
+) -> Result<(), String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        core.dict()?
+            .remove_user_dictionary(&title)
+            .map_err(|e| format!("Couldn't remove the dictionary: {e}"))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+// ---- Settings ----------------------------------------------------------------------------------
+
+/// Mirrors `SettingsView` in src/lib/backend.ts: the stored settings plus facts about secrets/services.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsView {
+    settings: crate::settings::Settings,
+    /// A DeepL key is stored in the OS keyring (the key itself is never sent to the UI).
+    has_deepl_key: bool,
+    /// Installed Ollama models (empty when Ollama isn't running).
+    ollama_models: Vec<String>,
+    /// Name of the Japanese Windows voice, if one is installed.
+    japanese_voice: Option<String>,
+    /// VOICEVOX is running on this PC.
+    voicevox: bool,
+    /// Dictionary attribution for the About section.
+    attribution: Option<String>,
+}
+
+/// Current settings and service status.
+#[tauri::command]
+pub async fn get_settings(core: tauri::State<'_, Arc<Core>>) -> Result<SettingsView, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || SettingsView {
+        settings: lock(&core.settings).clone(),
+        has_deepl_key: crate::translate_deepl::stored_key().is_some(),
+        ollama_models: crate::translate_ollama::models(crate::translate_ollama::DEFAULT_BASE),
+        japanese_voice: crate::audio_windows::japanese_voice(),
+        voicevox: crate::audio_voicevox::available(),
+        attribution: core.dict().ok().and_then(|d| d.meta("attribution")),
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))
+}
+
+/// Save settings (values are clamped/repaired); returns what was stored.
+#[tauri::command(async)]
+pub fn save_settings(
+    core: tauri::State<'_, Arc<Core>>,
+    settings: crate::settings::Settings,
+) -> Result<crate::settings::Settings, String> {
+    let clean = settings.sanitized();
+    // Hold the lock across the write so two saves (or a save + a card's deck change) can't interleave.
+    let mut current = lock(&core.settings);
+    stores::save(&core.data_dir, Store::Settings, &clean)
+        .map_err(|e| format!("Couldn't save settings: {e}"))?;
+    *current = clean.clone();
+    Ok(clean)
+}
+
+/// Store (checked against DeepL first) or remove the DeepL key. Returns "used/limit" characters.
+#[tauri::command]
+pub async fn set_deepl_key(key: Option<String>) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        match key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
+            Some(k) => {
+                let (used, limit) = crate::translate_deepl::usage(&k)?;
+                crate::translate_deepl::set_key(Some(&k))?;
+                Ok(Some(format!("{used} / {limit} characters used this month")))
+            }
+            None => crate::translate_deepl::set_key(None).map(|_| None),
+        }
     })
     .await
     .map_err(|e| format!("internal error: {e}"))?
@@ -1081,6 +1444,97 @@ mod tests {
         // The cue is now marked as mined for this file.
         let again = prepare(&core, &path).unwrap();
         assert_eq!(again.mined_cue_ids, vec![cue.id]);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// A Japanese SRT from "another release" (3 s late) is added, becomes the JP track, is
+    /// auto-synced against the English track, and the sync survives a re-prepare; reset undoes it.
+    #[test]
+    fn add_external_sub_and_auto_sync() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let sample = root.join("../samples/hi10p-ass.mkv");
+        let tools_dir = root.join("lib");
+        if !sample.is_file() || Tools::find(std::slice::from_ref(&tools_dir)).is_none() {
+            eprintln!("skipping: samples or bundled tools missing");
+            return;
+        }
+        let tmp = std::env::temp_dir().join(format!("kp-sync-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let core = Core::new(&[tools_dir], tmp.join("data"), tmp.join("cache"));
+        let path = sample
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        prepare(&core, &path).unwrap();
+        // Build the late SRT from the embedded JP dialogue.
+        let jp = core.track(&path, 1).unwrap();
+        let ts = |ms: i64| {
+            format!(
+                "{:02}:{:02}:{:02},{:03}",
+                ms / 3_600_000,
+                ms / 60_000 % 60,
+                ms / 1000 % 60,
+                ms % 1000
+            )
+        };
+        let srt: String = jp
+            .cues
+            .iter()
+            .filter(|c| c.kind == subtitles::CueKind::Dialogue)
+            .enumerate()
+            .map(|(i, c)| {
+                format!(
+                    "{}\n{} --> {}\n{}\n\n",
+                    i + 1,
+                    ts(c.start_ms + 3_000),
+                    ts(c.end_ms + 3_000),
+                    c.text
+                )
+            })
+            .collect();
+        let file = tmp.join("other-release.srt");
+        std::fs::write(&file, srt).unwrap();
+        let file = file.to_string_lossy().into_owned();
+
+        let p = add_sub_file(&core, &path, &file).unwrap();
+        let new_id = p
+            .tracks
+            .iter()
+            .find(|t| t.path.as_deref() == Some(file.as_str()))
+            .unwrap()
+            .id;
+        assert_eq!(
+            p.jp_sub_id,
+            Some(new_id),
+            "a Japanese file takes the JP role"
+        );
+        let before = core.track(&path, new_id).unwrap().cues[0].start_ms;
+
+        let s = sync(&core, &path, new_id, 2).unwrap();
+        assert!((s.median_shift_ms + 3_000).abs() <= 50, "{s:?}");
+        let after = core.track(&path, new_id).unwrap().cues[0].start_ms;
+        assert!((before - after - 3_000).abs() <= 50, "{before} -> {after}");
+
+        // Survives a fresh prepare (new parse from the file + stored shifts).
+        lock(&core.parsed).clear();
+        let again = prepare(&core, &path).unwrap();
+        assert_eq!(again.jp_sub_id, Some(new_id));
+        assert_eq!(core.track(&path, new_id).unwrap().cues[0].start_ms, after);
+
+        // Syncing twice doesn't stack; reset restores the file's timing.
+        sync(&core, &path, new_id, 2).unwrap();
+        assert_eq!(core.track(&path, new_id).unwrap().cues[0].start_ms, after);
+        {
+            let mut lib = lock(&core.library);
+            lib.entry(&path).retimed.remove(&new_id);
+        }
+        lock(&core.parsed).clear();
+        assert_eq!(core.track(&path, new_id).unwrap().cues[0].start_ms, before);
+        assert!(
+            add_sub_file(&core, &path, &path).is_err(),
+            "a video is not a subtitle file"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

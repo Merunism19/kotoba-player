@@ -5,6 +5,8 @@
 //! * [`deinflect`] reduces conjugated forms to dictionary forms with a rule table written for this project.
 //! * [`furigana()`] and [`pitch`] produce the ruby segments and pitch patterns shown in the popup.
 //!
+//! [`Dict::import_yomitan`] adds Yomitan-format dictionaries (terms, frequency ranks, pitch) in a separate user database.
+//!
 //! The serialized types ([`LookupResult`], [`DictEntry`], ...) match `src/lib/backend.ts` exactly.
 
 pub mod build;
@@ -16,8 +18,10 @@ pub mod kana;
 pub mod pitch;
 mod store;
 mod types;
+mod user;
 
 pub use dict::Dict;
 pub use error::Error;
 pub use furigana::furigana;
 pub use types::{DictEntry, Furigana, LookupResult, Pitch, Sense};
+pub use user::{ImportKind, ImportSummary};

@@ -6,7 +6,7 @@ import { ROOT, run } from '../lib/util.mjs';
 const ALLOWED = new Set([
   'MIT', 'Apache-2.0', 'Apache-2.0 WITH LLVM-exception', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Zlib',
   'MPL-2.0', 'Unicode-3.0', 'Unicode-DFS-2016', 'Unlicense', '0BSD', 'CC0-1.0', 'BSL-1.0',
-  'LGPL-2.1-or-later', 'LGPL-3.0-or-later', 'GPL-2.0-or-later', 'GPL-3.0-or-later', 'GPL-3.0-only',
+  'LGPL-2.1-or-later', 'LGPL-3.0-or-later', 'GPL-2.0-or-later', 'GPL-3.0-or-later', 'GPL-3.0-only', 'GPL-3.0', // deprecated SPDX id for GPL-3.0-only (alass-core)
   'OFL-1.1', 'CC-BY-4.0', 'CC-BY-SA-4.0', 'MIT-0', 'BlueOak-1.0.0', 'Python-2.0', 'CDLA-Permissive-2.0',
 ]);
 

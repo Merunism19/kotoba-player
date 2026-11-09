@@ -85,12 +85,17 @@ export async function startMining(result: LookupResult, entry: DictEntry, instan
   }
   const resume = get().popup?.resume ?? false;
   set({ drafting: true });
+  // Results that arrive after the user moved to another file (or home) must not land on it (review 2026-11-08).
+  const stillHere = () => get().media?.path === req.path;
   try {
     const draft = await backend.draftCard(req);
+    if (!stillHere()) return;
     if (instant) {
       const id = await backend.addCard(draft.draftId, {});
-      markMined(req.cueId);
-      closePopup();
+      if (stillHere()) {
+        markMined(req.cueId);
+        closePopup();
+      }
       toastAdded(id);
     } else {
       set({ popup: null, mining: { req, draft, resume } });

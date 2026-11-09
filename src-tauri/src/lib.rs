@@ -8,8 +8,13 @@ mod commands;
 mod library;
 mod media;
 mod mining;
+mod mpv_guard;
 mod settings;
 mod stores;
+mod sync;
+mod translate;
+mod translate_deepl;
+mod translate_ollama;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -17,7 +22,6 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_libmpv::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -46,6 +50,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            mpv_guard::mpv_start,
+            mpv_guard::mpv_command,
+            mpv_guard::mpv_set,
             commands::prepare_media,
             commands::get_cues,
             commands::align_cues,
@@ -56,6 +63,15 @@ pub fn run() {
             commands::draft_card,
             commands::add_card,
             commands::show_in_anki,
+            commands::add_subtitle_file,
+            commands::sync_subtitles,
+            commands::reset_sync,
+            commands::import_dictionary,
+            commands::user_dictionaries,
+            commands::remove_dictionary,
+            commands::get_settings,
+            commands::save_settings,
+            commands::set_deepl_key,
             commands::save_file_state,
             commands::save_position,
             commands::recent_files,

@@ -241,3 +241,5 @@ pub fn offset_of(hay: &str, needle: &str) -> usize {
     let byte = hay.find(needle).unwrap();
     hay[..byte].chars().count()
 }
+
+pub mod zipgen;
