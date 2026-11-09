@@ -39,3 +39,4 @@ what is specific to this repo.
 - 2026-11-08: Added scripts/ci.mjs, ship.mjs, codemap.mjs, guards (encoding, licenses, network) and `.github/workflows/ci.yml` (PR-only, ubuntu, no Rust).
 - 2026-11-08: Hosted Actions blocked by account billing; owner chose local-CI gating (`ship.mjs --local-gate`), which now also notes the gate on an already-open PR.
 - 2026-11-08: `ship.mjs --no-merge`: merging into main needs the owner's OK per PR, so phases ship as gated, open (stacked) PRs.
+- 2026-11-08: ship.mjs: a docs-only change may keep the version; anything else still needs a bump.

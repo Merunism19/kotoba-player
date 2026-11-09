@@ -123,7 +123,15 @@ if (!mergedAlready) {
       must(mut('cargo', ['update', '--workspace', '--offline']), 'cargo update --workspace failed (Cargo.lock must follow the new version)');
       writeFileSync(bumpLog, JSON.stringify({ ...bumps, [branch]: version }, null, 2));
     }
-  } else if (mainVer && cmp(version, mainVer) === 0) refuse(`--bump none but version ${version} equals main's`);
+  } else if (mainVer && cmp(version, mainVer) === 0) {
+    // A docs-only change (every changed file is docs/ or Markdown) ships without a new version.
+    const files = new Set();
+    for (const l of ro('git', ['diff', '--name-only', 'origin/main...HEAD']).stdout.split('\n')) if (l) files.add(l);
+    for (const l of ro('git', ['status', '--porcelain', '-uall']).stdout.split('\n')) if (l.length > 3) files.add(l.slice(3).replace(/^"|"$/g, ''));
+    const docs = files.size > 0 && [...files].every((f) => f.startsWith('docs/') || f.endsWith('.md'));
+    if (!docs) refuse(`--bump none but version ${version} equals main's (only docs-only changes may keep the version)`);
+    say(`  docs-only change: keeping v${version}`);
+  }
   else say(`  version ${version} already ahead of main (${mainVer ?? 'n/a'})`);
 
   // ---- memory check

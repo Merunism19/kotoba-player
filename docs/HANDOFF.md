@@ -56,7 +56,9 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
-v1.0.0 — all five phases built. Phases 4–5 on `phase4-polish` (stacked on PR #4 → #3 → #2; merge in order):
+v1.0.1 — tooling/docs only since the v1.0.0 release (ship script: docs-only changes keep the version).
+All five phases built, merged to main (PRs #2–#5, merge commits) and released as v1.0.0:
+https://github.com/Merunism19/kotoba-player/releases/tag/v1.0.0 (installer `Kotoba Player_1.0.0_x64-setup.exe`).
 - Phase 4: settings drawer (Anki deck/tags, DeepL key in the Windows Credential Manager, Ollama model,
   English line mode, subtitle size, pause on hover, offset step, accent palettes, About/attribution),
   transcript sidebar (T), dropping .ass/.srt onto the player, "Sync to English" (alass, persisted per file,
@@ -70,10 +72,13 @@ Not verified: real anime files, real Anki/AnkiConnect (fake server only), real J
 DeepL with a real key, AnkiDroid/AnkiMobile rendering — see DEVICE-TEST-PLAN.md.
 
 ## Next steps
-1. Owner: merge PRs #2 → #3 → #4 → #5 (in order), then `node scripts/ship.mjs --release --local-gate`
-   on a follow-up branch (or upload the installer by hand) to publish the GitHub release.
-2. Owner: run DEVICE-TEST-PLAN.md (AnkiConnect, Japanese voice, a real episode).
-3. Later ideas: audio-based sync (no reference track), word-audio packs, a smaller tokenizer dictionary (UniDic is 194 MB in the exe).
+1. Owner: run DEVICE-TEST-PLAN.md (install AnkiConnect, a Japanese voice, a real episode) and report issues.
+2. Housekeeping: the merged branches phase1-player … phase4-polish can be deleted on GitHub (deleting
+   them was blocked for the agent as destructive).
+3. Later ideas: audio-based sync (no reference track), word-audio packs, a smaller tokenizer
+   dictionary (UniDic is 194 MB in the exe).
+4. Stacked PRs: merge them with merge commits, not squash (a squashed parent makes the next PR conflict
+   with its own earlier commits).
 
 ## Status log (keep ≤ 8 lines; older lines → docs/HISTORY.md)
 - 2026-11-08: Read AGENT-WORKFLOW.md; wrote DESIGN.md, mockup, project docs (HANDOFF/WORKFLOW/BRIEF/test plan).
@@ -82,3 +87,4 @@ DeepL with a real key, AnkiDroid/AnkiMobile rendering — see DEVICE-TEST-PLAN.m
 - 2026-11-08: Phase 2: dictionary DB + lookup (helper), popup UI (helper), word audio (orchestrator); popup opacity raised after the real-app shot.
 - 2026-11-08: Phase 3: card templates + mining UI (helpers), AnkiConnect client + card builder (orchestrator); real-app run against a fake AnkiConnect.
 - 2026-11-08: Phases 4–5: settings/transcript/sync UI + Yomitan import (helpers), translation/sync/settings/packaging (orchestrator); 2 reviewers, all findings fixed; v1.0.0 installer.
+- 2026-11-08: Owner approved; PRs #2–#5 merged in order, v1.0.0 released on GitHub.
