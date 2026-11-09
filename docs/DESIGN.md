@@ -144,6 +144,14 @@ panels over panels). The mockup was updated to show it this way.
 Type: **Inter** for UI, **Noto Sans JP** (subtitles, dictionary) and **Zen Maru Gothic** for the
 big headword. Fonts are bundled (OFL), never loaded from the web.
 
+App icon (owner request, 2026-11-08): a speech bubble (kotoba = "words") in the sakura →
+twilight-indigo gradient with 言 (Zen Maru Gothic 700) cut out of it, on a dark ink rounded
+square. Source: `scripts/icon/icon.html`; `node scripts/icon/make-icon.mjs [--preview]` renders
+`src-tauri/icons/source.png` + `src/assets/logo.png` (the home-screen logo), then
+`pnpm tauri icon src-tauri/icons/source.png` makes the platform set (delete `android/`, `ios/`).
+The installer always creates a desktop shortcut (`src-tauri/windows/hooks.nsh`), except on
+updater runs and `/NS`.
+
 Motion: popup springs in from 96 % scale + 6 px rise, 160 ms; controls fade 200 ms; the "Added"
 state morphs the button into a check. Respect `prefers-reduced-motion`.
 

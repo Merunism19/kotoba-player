@@ -18,6 +18,7 @@ what is specific to this repo.
 | UI checks | `pnpm -s lint && pnpm -s typecheck && pnpm -s test` |
 | Screenshots | `pnpm -s shots` (Playwright, writes `artifacts/shots/*.png`) |
 | Code map | `node scripts/codemap.mjs` → `docs/CODEMAP.md` (`--check` fails if stale) |
+| App icon | edit `scripts/icon/icon.html`, then `node scripts/icon/make-icon.mjs --preview` (→ `artifacts/shots/icon-preview.png`) and `pnpm tauri icon src-tauri/icons/source.png`; delete the generated `android/` and `ios/` folders |
 | Ship | `node scripts/ship.mjs [--bump patch\|minor\|none] [--release] [--local-gate] [--no-merge] [--dry-run]`, text from `.ship/commit-msg.txt`, `.ship/pr-body.md`, `.ship/release-notes.md` (bump → codemap → guards → commit/PR from files → gate → merge → release → `SHIP OK`). `--no-merge` stops at a gated, open PR and prints `SHIP READY` (merges need the owner's OK). |
 
 ## Gates (local CI runs all of them)

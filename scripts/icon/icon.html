@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Kotoba Player app icon (rendered by scripts/icon/make-icon.mjs). A speech bubble — kotoba,
+     "words" — in the app's pink→periwinkle accents, with 言 (koto, "word"; the home-screen logo's
+     first kanji, in the same Zen Maru Gothic) cut out of it, on the app's dark ink square. The
+     bubble alone still reads at 16 px. -->
+<meta charset="utf-8">
+<style>
+  @import url("../../node_modules/@fontsource/zen-maru-gothic/700.css");
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; }
+</style>
+<svg id="icon" width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2130"/>
+      <stop offset="1" stop-color="#0d0f15"/>
+    </linearGradient>
+    <linearGradient id="bubble" x1="0.1" y1="0.05" x2="0.9" y2="0.95">
+      <stop offset="0" stop-color="#ff8fb1"/>
+      <stop offset="0.55" stop-color="#ff7aa2"/>
+      <stop offset="1" stop-color="#8a9bff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#ff7aa2" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#ff7aa2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="cut">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <!-- 言, centred in the bubble body (196–674) -->
+      <text x="512" y="540" text-anchor="middle" font-family="Zen Maru Gothic" font-weight="700" font-size="360" fill="#000">言</text>
+    </mask>
+  </defs>
+  <!-- ink square (Windows trims nothing, so keep a small margin for the shadow) -->
+  <rect x="40" y="40" width="944" height="944" rx="216" fill="url(#bg)"/>
+  <rect x="40" y="40" width="944" height="944" rx="216" fill="url(#glow)"/>
+  <rect x="41.5" y="41.5" width="941" height="941" rx="214.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <!-- speech bubble: rounded body + tail at lower left -->
+  <g mask="url(#cut)">
+    <path fill="url(#bubble)" d="
+      M330 196 H694 Q828 196 828 330 V540 Q828 674 694 674 H468
+      L332 800 Q312 818 314 790 L322 674
+      Q196 668 196 540 V330 Q196 196 330 196 Z"/>
+  </g>
+</svg>
