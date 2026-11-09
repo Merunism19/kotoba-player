@@ -49,20 +49,25 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - WebView2 browser processes outlive the app for a few seconds and get reused by the next launch
   (new debug port ignored) — the probe waits for them; do the same in any launch automation.
 - ffmpeg/ffprobe are static builds of ~130 MB each — revisit (shared build) before the installer (Phase 5).
+- No Japanese speech voice is installed on this PC (only en-US); VOICEVOX and Ollama aren't running.
+- `jptext` build downloads UniDic (~140 MB) from lindera.dev on a cold build (pinned MD5).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
-v0.1.1 — Phase 0 done: scaffold (Tauri v2 + React/TS), pinned deps script, local CI + guards +
-ship script + hosted CI (PR-only, ubuntu), probe tooling, **libmpv overlay spike passed**
-(Hi10P/HEVC10/MP4, subs JP+EN read from mpv, click on subtitle text, screenshot, fullscreen).
-The UI is still the spike (`src/App.tsx`), to be replaced in Phase 1.
+v0.2.0 — Phase 1 done (player MVP): full-window home with "Continue watching" (thumbnails), player
+with auto-hiding controls, seek-bar cue ticks, track picker, offset hotkeys (Z/X, Shift+Z), line
+navigation (A/S/D), resume + per-file memory (`library.json` via `stores.rs`), error toasts.
+Subtitles are parsed in Rust (`crates/subtitles`); dialogue is drawn by the WebView as whole-word
+units (`crates/jptext`, Lindera + UniDic); signs/songs are drawn by mpv from a signs-only ASS.
+Checked in the real app with `scripts/dev/probe.sh` (Hi10P sample: words, EN alignment, signs track).
 
 ## Next steps
-1. Phase 1 (DESIGN §9): H1 `crates/subtitles`, H-tok tokenizer + whole-word spans, H2 player UI
-   (full-window home, controls, track picker, hotkeys, error toast for unreadable files); O: mpv
-   bridge + ffprobe + subtitle extraction + signs-only ASS for mpv.
-2. Bundle fonts (Inter, Noto Sans JP, Zen Maru Gothic; OFL) — the spike falls back to Yu Gothic.
+1. Phase 2 (DESIGN §9): dictionary build tool (JMdict + Kanjium → SQLite), `crates/jpdict`
+   (deinflection, lookup at position, pitch), popup UI, word audio (VOICEVOX → Windows voice).
+2. Known gaps: audio-track choice isn't remembered (contract has no field); white subtitle text could
+   use a stronger outline over very bright frames; UniDic embeds ~194 MB into the binary (revisit in Phase 5).
 
 ## Status log (keep ≤ 8 lines; older lines → docs/HISTORY.md)
 - 2026-11-08: Read AGENT-WORKFLOW.md; wrote DESIGN.md, mockup, project docs (HANDOFF/WORKFLOW/BRIEF/test plan).
 - 2026-11-08: Phase 0: repo + private GitHub, Rust installed, scaffold, helper built CI/ship/guards, spike passed.
+- 2026-11-08: Phase 1: contract-first, 3 helpers in parallel worktrees (subtitles, tokenizer, UI) + Rust core; real-app probe passed.

@@ -1,0 +1,13 @@
+[package]
+name = "jptext"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+[dependencies]
+lindera = { version = "6.2.0", default-features = false, features = ["embed-unidic"] }
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0.154"

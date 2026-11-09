@@ -1,6 +1,6 @@
 [package]
 name = "kotoba-player"
-version = "0.1.1"
+version = "0.2.0"
 description = "Anime video player with click-to-look-up Japanese dictionary and Anki mining"
 authors = ["merunism"]
 edition = "2024"
@@ -25,5 +25,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-libmpv = "0.3.2"
 tauri-plugin-dialog = "2"
+thiserror = "2"
+base64 = "0.22"
+subtitles = { version = "0.1.0", path = "../crates/subtitles" }
+jptext = { version = "0.1.0", path = "../crates/jptext" }
 
 

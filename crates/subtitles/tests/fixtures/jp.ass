@@ -1,0 +1,20 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Noto Sans JP,52,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,3,1,2,40,40,40,1
+Style: Sign,Noto Sans JP,40,&H00FFE0B0,&H000000FF,&H00402010,&H00000000,0,0,0,0,100,100,0,0,1,2,0,8,40,40,40,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.50,0:00:06.00,Sign,,0,0,0,,{\pos(640,80)}第七話「夕焼けの旅」
+Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,もう諦めないって決めたんだ。
+Dialogue: 0,0:00:04.50,0:00:08.00,Default,,0,0,0,,食べさせられなかったのは残念だね。
+Dialogue: 0,0:00:09.00,0:00:12.00,Default,,0,0,0,,明日、一緒に行こうよ。
+Dialogue: 0,0:00:12.50,0:00:16.00,Default,,0,0,0,,夕焼けがこんなに綺麗だなんて知らなかった。
+Dialogue: 0,0:00:17.00,0:00:20.50,Default,,0,0,0,,約束だよ。絶対に忘れないでね。
+Dialogue: 0,0:00:21.00,0:00:25.00,Default,,0,0,0,,カメラを持ってきたから、写真を撮ろう！
+Dialogue: 0,0:00:26.00,0:00:29.50,Default,,0,0,0,,ありがとう。また会おうね。

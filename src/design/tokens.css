@@ -1,0 +1,52 @@
+/* Design tokens for the whole UI (docs/DESIGN.md section 5): colours, type, radii, shadows, motion; components use only these. */
+:root {
+  --bg: #0b0d12;
+  --bg-2: #12151d;
+  /* Blurred glass: only where the page itself is underneath (home, panels over panels). */
+  --glass: rgba(18, 20, 28, 0.72);
+  --glass-blur: blur(24px) saturate(140%);
+  /* Tinted glass over the video surface (backdrop-filter cannot see mpv's surface, so no blur). */
+  --glass-video: rgba(14, 16, 22, 0.82);
+  --glass-video-strong: rgba(14, 16, 22, 0.9);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-2: rgba(255, 255, 255, 0.14);
+  --hover: rgba(255, 255, 255, 0.08);
+  --fill: rgba(255, 255, 255, 0.06);
+
+  --text: #f2f3f7;
+  --text-2: #b4b8c5;
+  --text-3: #7a7f8e;
+
+  --accent: #ff7aa2;
+  --accent-soft: rgba(255, 122, 162, 0.16);
+  --accent-ink: #1a0d14;
+  --accent-2: #8a9bff;
+  --gold: #ffd27a;
+  --ok: #4fd6a8;
+  --err: #ff6b6b;
+
+  --pitch-heiban: #5ba8ff;
+  --pitch-atamadaka: #ff6b6b;
+  --pitch-nakadaka: #ffa94d;
+  --pitch-odaka: #4fd6a8;
+
+  --r-panel: 20px;
+  --r-ctl: 16px;
+  --r-btn: 12px;
+  --r-pill: 999px;
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --shadow-accent: 0 8px 24px rgba(255, 122, 162, 0.35);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  --font-ui: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-jp: 'Noto Sans JP Variable', 'Yu Gothic UI', 'Meiryo', sans-serif;
+  --font-head: 'Zen Maru Gothic', 'Noto Sans JP Variable', 'Yu Gothic UI', sans-serif;
+
+  --dur-fast: 150ms;
+  --dur: 200ms;
+  --ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+
+  --z-video-ui: 10;
+  --z-popup: 30;
+  --z-toast: 50;
+}
