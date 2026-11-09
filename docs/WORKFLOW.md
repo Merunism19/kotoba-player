@@ -18,6 +18,7 @@ what is specific to this repo.
 | UI checks | `pnpm -s lint && pnpm -s typecheck && pnpm -s test` |
 | Screenshots | `pnpm -s shots` (Playwright, writes `artifacts/shots/*.png`) |
 | Code map | `node scripts/codemap.mjs` → `docs/CODEMAP.md` (`--check` fails if stale) |
+| Sync-to-voices test data | `node scripts/make-speech-sample.mjs [minutes=6]` (env `BED=0.03…0.2` = music level under the voices) → `samples/speech/` (real Windows-voice speech under music, Japanese/English files out of sync in 4 ways, `truth.json`); `cargo test -p kotoba-player --release syncs_to_real_speech -- --nocapture` prints the error per case; `bash scripts/dev/sync-probe.sh [const\|split\|messy]` checks the real (release) app end to end |
 | App icon | edit `scripts/icon/icon.html`, then `node scripts/icon/make-icon.mjs --preview` (→ `artifacts/shots/icon-preview.png`) and `pnpm tauri icon src-tauri/icons/source.png`; delete the generated `android/` and `ios/` folders |
 | Ship | `node scripts/ship.mjs [--bump patch\|minor\|none] [--release] [--local-gate] [--no-merge] [--dry-run]`, text from `.ship/commit-msg.txt`, `.ship/pr-body.md`, `.ship/release-notes.md` (bump → codemap → guards → commit/PR from files → gate → merge → release → `SHIP OK`). `--no-merge` stops at a gated, open PR and prints `SHIP READY` (merges need the owner's OK). |
 

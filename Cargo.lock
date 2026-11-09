@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "kotoba-player"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "alass-core",
  "base64 0.22.1",
@@ -1921,6 +1921,7 @@ dependencies = [
  "tauri-plugin-libmpv",
  "thiserror 2.0.21",
  "ureq",
+ "webrtc-vad",
  "windows",
 ]
 
@@ -4786,6 +4787,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5f280bbb2b287bc8e7de7e3852945a0ff50d1bbcb5ed42b6c7a568c546df171"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "webrtc-vad"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39a1e40fd6ca90be95459152a2537f2ba4286ee1b13073f7ebcaa74fc94e3008"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

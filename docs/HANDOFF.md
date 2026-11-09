@@ -60,6 +60,14 @@ public repo starts with no PRs and only the v1.0.4 release.
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
+v1.1.0 — sync to the voices (owner: "Japanese syncs to the audio … 10 ms", "English follows Japanese"). Japanese
+subtitle FILES are synced to the voices automatically once per file (setting, default on; Undo sticks), any track
+by hand ("Sync to voices" in the track menu); the English then follows the synced Japanese. Lines start 100 ms
+(`LEAD_MS`) before their voice. Measured on `node scripts/make-speech-sample.mjs` (Windows voices under music;
+cases exact / 2.7 s late / split around an ad break / messy with OP lyrics, signs, missing lines; 6-24 min;
+music 8-27 dB under the voices): every line within 1-10 ms (one 11 ms worst at very loud music), correct subs
+untouched, 0 English lines under the wrong Japanese line; ~1.3 s for 24 min. Real app: `scripts/dev/sync-probe.sh`.
+Not yet tried on a real anime episode (real voices, real BGM). Details: DESIGN §2 "Sync".
 v1.0.5 — the installer ships the Visual C++ runtime (`vcruntime140.dll`) next to the exe: `libmpv-wrapper.dll`
 imports it and Windows doesn't include it, so on PCs without the VC++ redistributable the video engine couldn't
 load (this PC has it via the Build Tools, so it never showed here). Verified the running app loads the app-local copy.

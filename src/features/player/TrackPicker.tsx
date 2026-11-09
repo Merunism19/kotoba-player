@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Track } from '../../lib/backend';
 import { langLabel } from '../../lib/format';
 import { useApp } from '../../app/store';
-import { chooseAudio, chooseSub, syncToEnglish } from './session';
+import { chooseAudio, chooseSub, syncToAudio, syncToEnglish } from './session';
 import { IconCheck, IconHeadphones, IconSubs, IconSync } from './icons';
 
 const CODEC: Record<string, string> = { subrip: 'SRT', webvtt: 'VTT', ass: 'ASS', ssa: 'SSA' };
@@ -43,6 +43,7 @@ export default function TrackPicker() {
   const audioTrack = audio.find((t) => t.id === curAudio);
   const jpOn = subs.some((t) => t.id === media.jpSubId);
   const enOn = subs.some((t) => t.id === media.enSubId);
+  const hasAudio = audio.length > 0;
   const subLabel = jpOn && enOn ? 'JP + EN' : jpOn ? 'JP' : enOn ? 'EN' : 'Off';
 
   return (
@@ -64,13 +65,22 @@ export default function TrackPicker() {
             <h3>Japanese subtitles</h3>
             {subs.map((t) => <Option key={t.id} on={media.jpSubId === t.id} onPick={() => void chooseSub('jp', t.id)}>{label(t)}</Option>)}
             <Option on={media.jpSubId == null} onPick={() => void chooseSub('jp', null)}>None</Option>
-            <button
-              className="p-sync" disabled={!jpOn || !enOn || syncing}
-              title={jpOn && enOn ? 'Retime the Japanese lines to match the English track' : 'Needs a Japanese and an English subtitle track'}
-              onClick={() => { setOpen(false); void syncToEnglish(); }}
-            >
-              <IconSync />{syncing ? 'Syncing…' : 'Sync to English'}
-            </button>
+            <div className="p-sync-row">
+              <button
+                className="p-sync" disabled={!jpOn || !hasAudio || syncing}
+                title={jpOn ? (hasAudio ? 'Retime the Japanese lines to the voices in the audio' : 'Needs an audio track') : 'Needs a Japanese subtitle track'}
+                onClick={() => { setOpen(false); void syncToAudio(); }}
+              >
+                <IconSync />{syncing ? 'Syncing…' : 'Sync to voices'}
+              </button>
+              <button
+                className="p-sync" disabled={!jpOn || !enOn || syncing}
+                title={jpOn && enOn ? 'Retime the Japanese lines to match the English track' : 'Needs a Japanese and an English subtitle track'}
+                onClick={() => { setOpen(false); void syncToEnglish(); }}
+              >
+                <IconSync />Sync to English
+              </button>
+            </div>
 
             <h3>English subtitles</h3>
             {subs.map((t) => <Option key={t.id} on={media.enSubId === t.id} onPick={() => void chooseSub('en', t.id)}>{label(t)}</Option>)}

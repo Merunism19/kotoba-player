@@ -65,6 +65,8 @@ pub fn run() {
             commands::show_in_anki,
             commands::add_subtitle_file,
             commands::sync_subtitles,
+            commands::sync_to_audio,
+            commands::auto_sync_to_audio,
             commands::reset_sync,
             commands::import_dictionary,
             commands::user_dictionaries,

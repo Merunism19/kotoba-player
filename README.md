@@ -36,8 +36,10 @@ and the real voice line — in one click.
 - **English subtitles underneath**, blurred until you hover them, so you read the Japanese first.
 - **Study tools:** jump to the previous / next line, replay a line, a searchable transcript, pause while your
   mouse is over a line, and gold marks on the seek bar for lines you already mined.
-- **Subtitle sync:** nudge the timing by ±100 ms, "this line starts now", or **Sync to English** — it
-  automatically retimes a Japanese subtitle file to match the English track.
+- **Subtitle sync to the voices:** a Japanese subtitle file that's out of sync (common when it comes from
+  another release) is synced **automatically to the voices in the audio**: every line starts just as it is
+  spoken, even across ad breaks. The English subtitles then follow the Japanese, so each English line sits
+  under its Japanese line. You can also nudge the timing by ±100 ms or press "this line starts now".
 - **Private.** Everything runs on your PC. No account, no tracking. (Only exception, and only if you turn it
   on: a sentence you mine can be sent to DeepL for translation when the video has no English subtitles.)
 
@@ -171,16 +173,31 @@ Want it faster? **Shift+click Add to Anki** (or **Shift+Enter**) skips the previ
 
 ### Fix subtitle timing
 
-If the Japanese lines appear early or late:
+**Automatic:** when you open a video whose Japanese subtitles are a separate file (next to the video, or
+dragged onto the player), the app listens to the audio and syncs them to the voices. It takes about a
+second, happens once per file, and a message says how far they moved, with **Undo**. Each line starts
+0.1 s before its voice, the usual lead-in so the text is up as it's spoken. In tests with background music
+under the dialogue, lines landed within a few milliseconds of that, even when the file was split
+differently around an ad break, had the opening song's lyrics as lines, or had lines missing. Subtitles
+that are already in sync aren't touched. The **English** subtitles then follow the Japanese, so each
+English line shows under the Japanese line it translates. An English subtitle file on its own follows the
+Japanese track the same way. Subtitles inside the video file are trusted as they are. To switch the
+automatic sync off: **Settings → Subtitles → Sync subtitle files to the voices**.
 
-- **Z / X** shift them by −/+100 ms (the step is adjustable in Settings). The offset shows in the top bar
-  and is remembered for that file.
+**By hand**, in the subtitle menu (top bar):
+
+- **Sync to voices** does the same for any Japanese track, embedded ones too.
+- **Sync to English** lines the Japanese up with the English track instead.
+
+And with the keyboard:
+
+- **Z / X** shift the Japanese lines by −/+100 ms (the step is adjustable in Settings). The offset shows in
+  the top bar and is remembered for that file.
 - **Shift+Z** — "this line starts now": press it the moment a character starts speaking the current line.
-- **Sync to English** (in the subtitle menu): if the file also has English subtitles, the app retimes the
-  Japanese track to match them automatically — useful when the Japanese subs come from a different release.
-  It is remembered for that file and can be undone.
 
-<img src="docs/images/player-track-picker.png" alt="Track menu with audio, Japanese and English subtitles and Sync to English" width="860">
+All of it is remembered per file and can be undone.
+
+<img src="docs/images/player-track-picker.png" alt="Track menu with audio, Japanese and English subtitles, Sync to voices and Sync to English" width="860">
 
 ### Settings (Ctrl + ,)
 
@@ -243,8 +260,8 @@ start VOICEVOX.
 subtitles are a separate file, name it like the video plus `.ja.ass` / `.ja.srt` and put it in the same
 folder, or drag it onto the player.
 
-**The subtitles are out of sync.** Use **Z / X**, **Shift+Z**, or **Sync to English** — see
-[Fix subtitle timing](#fix-subtitle-timing).
+**The subtitles are out of sync.** Open the subtitle menu and press **Sync to voices**, or use **Z / X** /
+**Shift+Z** — see [Fix subtitle timing](#fix-subtitle-timing).
 
 **The sentence translation on the card is empty.** The video has no English subtitles and neither DeepL nor
 Ollama is set up. Type it in the preview, or add a DeepL key / start Ollama.
@@ -277,7 +294,7 @@ Found a bug? [Open an issue](https://github.com/Merunism19/kotoba-player/issues)
 │ jpdict: JMdict + Kanjium pitch in SQLite, conjugation rules, Yomitan imp. │
 │ media: ffprobe/ffmpeg — tracks, subtitle extraction, audio clips, frames  │
 │ anki: AnkiConnect (127.0.0.1:8765) · audio: VOICEVOX / Windows voice      │
-│ translate: English track → DeepL → Ollama · sync: alass                    │
+│ translate: English track → DeepL → Ollama · sync: voice detection + alass  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -291,7 +308,11 @@ Found a bug? [Open an issue](https://github.com/Merunism19/kotoba-player/issues)
 - **Cards:** the screenshot comes from mpv (without subtitles burned in), the sentence audio is cut from the
   episode by ffmpeg, and everything is sent through AnkiConnect with Anki's own furigana syntax so hover
   readings work everywhere.
-- **Sync to English:** [alass](https://github.com/kaegi/alass) aligns the Japanese timings to the English ones.
+- **Sync to voices:** ffmpeg decodes the audio; WebRTC's voice detector plus a "louder than the music
+  around it" check finds where people speak; [alass](https://github.com/kaegi/alass) aligns the lines to that
+  speech (handling ad-break splits); a fine step then measures each voice onset to the millisecond and moves
+  every part of the track so its lines start 100 ms before their voices. The English track is aligned to the
+  synced Japanese the same way. **Sync to English** uses alass between the two subtitle tracks.
 
 More detail: [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -327,6 +348,7 @@ It stands on the shoulders of:
 - **[Kanjium](https://github.com/mifunetoshiro/kanjium)** pitch-accent data (CC BY-SA 4.0).
 - **[mpv](https://mpv.io/)**, **[FFmpeg](https://ffmpeg.org/)** (LGPL build),
   **[Lindera](https://github.com/lindera/lindera)** + UniDic, **[alass](https://github.com/kaegi/alass)**,
+  **[webrtc-vad](https://github.com/kaegi/webrtc-vad)** (WebRTC's voice activity detector),
   **[Tauri](https://tauri.app/)**, **[AnkiConnect](https://foosoft.net/projects/anki-connect/)**.
 - **[VOICEVOX](https://voicevox.hiroshiba.jp/)** — 四国めたん voice, when you use it.
 - Fonts: Inter, Noto Sans JP, Zen Maru Gothic (SIL Open Font License).

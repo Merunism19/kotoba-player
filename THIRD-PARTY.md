@@ -73,6 +73,7 @@ Group's licence: <https://www.edrdg.org/edrdg/licence.html>.
 | Component | Licence | Note |
 | --- | --- | --- |
 | `alass-core` | GPL-3.0 | automatic subtitle synchronization (the app is GPL-3.0-or-later) |
+| `webrtc-vad` | MIT (bundles the WebRTC VAD C code, BSD-3-Clause) | voice detection for "sync to voices" |
 | `lindera` + UniDic | MIT; UniDic BSD-3-Clause | tokenizer and its dictionary (embedded) |
 | `encoding_rs` | MIT OR Apache-2.0 (+ BSD-3-Clause data) | subtitle decoding |
 | `ureq` (native-tls) | MIT OR Apache-2.0 | loopback HTTP (AnkiConnect, VOICEVOX, Ollama) and DeepL |

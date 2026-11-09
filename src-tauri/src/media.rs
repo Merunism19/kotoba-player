@@ -569,6 +569,41 @@ pub fn audio_clip(
     ffmpeg_to(tools, out, &args, "sentence audio")
 }
 
+/// The whole of audio stream `audio_index` (0-based among audio streams) as mono 16-bit PCM at
+/// `rate` Hz, for voice detection. `scratch` is a temp file path (removed afterwards). An episode
+/// at 8 kHz is ~23 MB.
+pub fn audio_pcm(
+    tools: &Tools,
+    video: &Path,
+    audio_index: u32,
+    rate: u32,
+    scratch: &Path,
+) -> Result<Vec<i16>, MediaError> {
+    let args: Vec<String> = vec![
+        "-i".into(),
+        video.to_string_lossy().into_owned(),
+        "-map".into(),
+        format!("0:a:{audio_index}"),
+        "-vn".into(),
+        "-sn".into(),
+        "-ac".into(),
+        "1".into(),
+        "-ar".into(),
+        rate.to_string(),
+        "-f".into(),
+        "s16le".into(),
+    ];
+    ffmpeg_to(tools, scratch, &args, "audio for sync")?;
+    let bytes = std::fs::read(scratch);
+    let _ = std::fs::remove_file(scratch);
+    Ok(bytes?
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| i16::from_le_bytes(*b))
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
