@@ -96,7 +96,17 @@
 .p-btn:hover:not(:disabled) { background: var(--hover); }
 .p-btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-ink); box-shadow: var(--shadow-accent); }
 .p-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
-.p-tip { display: inline-flex; }
+.p-tip { position: relative; display: inline-flex; border-radius: var(--r-btn); }
+.p-tip.has-tip::after {
+  content: attr(data-tip); position: absolute; z-index: 3; left: 0; bottom: calc(100% + 10px); width: max-content; max-width: 400px;
+  padding: 8px 11px; border-radius: 11px; white-space: pre-line; font: 500 12px / 1.45 var(--font-ui); color: var(--text-2);
+  background: var(--glass-video-strong); border: 1px solid var(--hairline-2); box-shadow: var(--shadow);
+  opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity var(--dur-fast), transform var(--dur-fast);
+}
+.p-tip.has-tip:hover::after, .p-tip.has-tip:focus-visible::after { opacity: 1; transform: none; }
+.p-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.p-btn.busy:disabled, .p-btn.busy { opacity: 1; cursor: progress; }
+.p-spin.small { width: 14px; height: 14px; border-color: rgba(26, 13, 20, 0.25); border-top-color: var(--accent-ink); }
 .p-kbd { margin-left: auto; font-size: 11px; color: var(--text-3); white-space: nowrap; }
 .p-kbd kbd { font: inherit; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--hairline-2); color: var(--text-2); }
 @media (max-width: 460px) { .p-kbd { display: none; } }

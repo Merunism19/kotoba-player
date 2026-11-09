@@ -38,13 +38,17 @@
 /* ---- subtitles ---- */
 .p-subs { position: absolute; left: 0; right: 0; bottom: max(19%, 132px); text-align: center; pointer-events: none; padding: 0 5vw; }
 .p-jp {
-  display: inline-block; max-width: 100%; pointer-events: auto; padding: 2px 8px;
+  display: inline-block; position: relative; max-width: 100%; pointer-events: auto; padding: 2px 8px;
   font: 700 clamp(18px, 3.3vw, 46px) / 1.55 var(--font-jp); letter-spacing: 0.02em; color: #fff;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65), 0 0 2px rgba(0, 0, 0, 0.9), 0 0 1px #000;
   /* Soft dark outline keeps white text readable on bright frames. */
   -webkit-text-stroke: 0.09em rgba(10, 10, 20, 0.6); paint-order: stroke fill;
 }
 .unit { white-space: pre-wrap; }
+.p-mined-dot {
+  position: absolute; left: calc(100% + 2px); top: 50%; width: 0.2em; height: 0.2em; min-width: 8px; min-height: 8px; margin-top: -0.1em; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 0 3px rgba(255, 210, 122, 0.22), 0 0 0.6em rgba(255, 210, 122, 0.85);
+}
 .unit.word {
   padding: 0.04em 0.06em; margin: 0 -0.06em; border-radius: 0.3em; cursor: pointer;
   transition: background var(--dur-fast), box-shadow var(--dur-fast);
@@ -72,6 +76,10 @@
 .p-seek:hover .p-seek-track { height: 7px; }
 .p-seek-fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
 .p-seek-tick { position: absolute; top: -5px; width: 1px; height: 4px; background: rgba(255, 255, 255, 0.35); pointer-events: none; }
+.p-seek-mined {
+  position: absolute; top: -8px; width: 3px; height: 8px; margin-left: -1px; border-radius: 2px; background: var(--gold);
+  box-shadow: 0 0 6px rgba(255, 210, 122, 0.55); pointer-events: none;
+}
 .p-seek-knob {
   position: absolute; top: 50%; width: 13px; height: 13px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%);
   box-shadow: 0 0 0 4px rgba(255, 122, 162, 0.25);

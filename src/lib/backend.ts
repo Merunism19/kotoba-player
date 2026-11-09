@@ -75,6 +75,57 @@ export interface PreparedMedia {
   resumeMs?: number;
   /** Subtitle offset remembered for this file (positive = subtitles later). */
   offsetMs: number;
+  /** Japanese cue ids already mined from this file (gold marks on the seek bar). */
+  minedCueIds: number[];
+}
+
+/** Anki connection state for the popup button and the mining dialog. */
+export interface AnkiStatus {
+  connected: boolean;
+  version?: number;
+  decks: string[];
+  /** Why it isn't connected (Anki closed, AnkiConnect missing…), in plain words. */
+  error?: string;
+}
+
+/** What the user is mining: the clicked word in the current Japanese line. */
+export interface MineRequest {
+  path: string;
+  jpSubId: number;
+  enSubId?: number;
+  /** Japanese dialogue cue the word was clicked in. */
+  cueId: number;
+  /** The word's place in the cue text (code points), highlighted in the sentence. */
+  start: number;
+  len: number;
+  /** The dictionary entry shown in the popup, and which senses to keep (indexes; empty = all). */
+  entry: DictEntry;
+  senses: number[];
+  /** Playback position for the screenshot, in media time (ms). */
+  frameMs: number;
+  /** Subtitle offset in effect (ms), so the sentence audio is cut where the line is spoken. */
+  offsetMs: number;
+  /** mpv audio track id in use (undefined = the first audio track). */
+  audioId?: number;
+}
+
+/** A card ready to send: its field values (HTML, as stored in Anki) and media previews. */
+export interface CardDraft {
+  /** Pass to addCard. Drafts live in memory until the app closes. */
+  draftId: string;
+  /** Field name → value, exactly as they will be stored (see anki/fields.json). */
+  fields: Record<string, string>;
+  /** Preview URLs (data:) for the screenshot and audio. */
+  screenshotUrl?: string;
+  sentenceAudioUrl?: string;
+  wordAudioUrl?: string;
+  /** Where the sentence translation came from ('none' = empty, the user can type one). */
+  translationSource: 'subtitles' | 'deepl' | 'ollama' | 'none';
+  /** Existing notes of this note type with the same word (any deck). */
+  duplicates: number[];
+  /** Deck the card goes to (remembered), and the user's decks. */
+  deck: string;
+  decks: string[];
 }
 
 /** A file in the "Continue watching" row. */
@@ -173,6 +224,14 @@ export interface Backend {
   lookupAt(text: string, offset: number): Promise<LookupResult[]>;
   /** Pronunciation of a word, or null when no source is available (no VOICEVOX running, no Japanese Windows voice). */
   wordAudio(term: string, reading: string): Promise<WordAudio | null>;
+  /** Is Anki reachable (never rejects; errors are in the status). */
+  ankiStatus(): Promise<AnkiStatus>;
+  /** Make the card's media (screenshot, sentence audio, word audio) and fields; also installs/updates the note type. */
+  draftCard(req: MineRequest): Promise<CardDraft>;
+  /** Send a draft to Anki (with the user's edits); returns the new note id and marks the cue as mined. */
+  addCard(draftId: string, edits: { sentenceTranslation?: string; deck?: string }): Promise<number>;
+  /** Open these notes in Anki's browser. */
+  showInAnki(noteIds: number[]): Promise<void>;
 }
 
 const tauriBackend: Backend = {
@@ -186,6 +245,10 @@ const tauriBackend: Backend = {
   startupFiles: () => invoke('startup_files'),
   lookupAt: (text, offset) => invoke('lookup_at', { text, offset }),
   wordAudio: (term, reading) => invoke('word_audio', { term, reading }),
+  ankiStatus: () => invoke('anki_status'),
+  draftCard: (req) => invoke('draft_card', { req }),
+  addCard: (draftId, edits) => invoke('add_card', { draftId, edits }),
+  showInAnki: (noteIds) => invoke('show_in_anki', { noteIds }),
 };
 
 let current: Backend = tauriBackend;

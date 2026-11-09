@@ -1,0 +1,87 @@
+/* Kotoba Mining card style (version in version.txt). Light = warm paper, dark = midnight cinema. */
+.card {
+  --bg: #F6F1E9; --panel-a: #FFFDF8; --panel-b: #FBF5EA;
+  --text: #2A2631; --text-2: #5E5967; --text-3: #8C8693;
+  --hair: rgba(60, 40, 30, .12);
+  --hl: #D6336C; --rule: #E0527F;
+  --pitch-def: #6B6675;
+  --heiban: #1F78D6; --atamadaka: #D93F45; --nakadaka: #D9740F; --odaka: #12936E;
+  --shadow: 0 14px 40px rgba(90, 60, 30, .14);
+  --shot-shadow: 0 10px 28px rgba(60, 40, 30, .22);
+  --btn: rgba(214, 51, 108, .10); --btn-fg: #D6336C;
+}
+.nightMode.card, .nightMode .card, .night_mode.card, .night_mode .card {
+  --bg: #0B0D12; --panel-a: #161925; --panel-b: #10131B;
+  --text: #F2F3F7; --text-2: #B4B8C5; --text-3: #7A7F8E;
+  --hair: rgba(255, 255, 255, .08);
+  --hl: #FF7AA2; --rule: #FF7AA2;
+  --pitch-def: #B4B8C5;
+  --heiban: #5BA8FF; --atamadaka: #FF6B6B; --nakadaka: #FFA94D; --odaka: #4FD6A8;
+  --shadow: 0 20px 60px rgba(0, 0, 0, .45);
+  --shot-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+  --btn: rgba(255, 122, 162, .16); --btn-fg: #FF7AA2;
+}
+body.card { background: var(--bg); margin: 0; min-height: 100vh; box-sizing: border-box; }
+body.card, .card {
+  font-family: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Meiryo", system-ui, sans-serif;
+  color: var(--text); text-align: center; line-height: 1.5;
+}
+body.card { padding: 14px; }
+.card .kt {
+  --pitch: var(--pitch-def);
+  box-sizing: border-box; max-width: 560px; margin: 0 auto; padding: 32px 24px 22px;
+  border-radius: 24px; border: 1px solid var(--hair); box-shadow: var(--shadow);
+  background: linear-gradient(180deg, var(--panel-a), var(--panel-b));
+}
+.kt.heiban { --pitch: var(--heiban); }
+.kt.atamadaka { --pitch: var(--atamadaka); }
+.kt.nakadaka { --pitch: var(--nakadaka); }
+.kt.odaka { --pitch: var(--odaka); }
+
+/* ruby: reading hidden until hover / tap, but its space stays reserved so nothing jumps */
+.kt ruby rt { font-size: .42em; letter-spacing: .04em; color: var(--pitch); opacity: 0; transition: opacity .15s; }
+.kt ruby:hover rt, .kt ruby.on rt { opacity: 1; }
+.kt ruby { cursor: default; }
+
+.kt .word { font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Meiryo", sans-serif; font-size: 52px; font-weight: 700; line-height: 1.3; word-break: keep-all; }
+.kt .word ruby rt { font-size: 15px; }
+
+.kt .sent { font-size: 21px; line-height: 2.1; margin-top: 16px; }
+.kt .sent ruby rt { font-size: 11px; }
+.kt .sent b { color: var(--hl); font-weight: 700; }
+
+.kt .shot { margin-top: 20px; }
+.kt .shot img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 16px; box-shadow: var(--shot-shadow); border: 1px solid var(--hair); }
+.kt .shot.small { margin-top: 18px; }
+.kt .shot.small img { max-width: 62%; border-radius: 12px; }
+
+/* back */
+.kt .under { margin-top: 6px; display: grid; gap: 8px; justify-items: center; }
+.kt .reading { font-size: 19px; letter-spacing: .06em; color: var(--pitch); display: flex; align-items: center; gap: 8px; justify-content: center; }
+.kt .pitch { color: var(--pitch); line-height: 0; }
+.kt .pitch svg { height: 30px; width: auto; max-width: 100%; }
+.kt .meaning { font-family: system-ui, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif; font-size: 16px; color: var(--text); margin-top: 2px; }
+.kt .meaning ol { display: inline-block; text-align: left; margin: 0; padding: 0; list-style: none; counter-reset: s; max-width: 34ch; }
+.kt .meaning li { counter-increment: s; position: relative; padding-left: 26px; margin: 4px 0; }
+.kt .meaning li::before { content: counter(s); position: absolute; left: 0; top: .2em; width: 18px; height: 18px; border-radius: 50%; background: var(--btn); color: var(--btn-fg); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.kt .meaning li:first-child:last-child { padding-left: 0; text-align: center; }
+.kt .meaning li:first-child:last-child::before { display: none; }
+.kt .meaning li:nth-child(n+2) { font-size: 14px; color: var(--text-2); }
+.kt .divider { height: 1px; background: var(--hair); margin: 20px 0 2px; }
+.kt .trans { margin: 8px auto 0; max-width: 36ch; text-align: left; font-family: system-ui, "Segoe UI", sans-serif; font-style: italic; font-size: 15px; line-height: 1.55; color: var(--text-2); padding: 6px 0 6px 14px; border-left: 2px solid var(--rule); }
+.kt .source { margin-top: 18px; font-family: system-ui, "Segoe UI", sans-serif; font-size: 11px; letter-spacing: .04em; color: var(--text-3); }
+
+/* Anki's own play buttons, restyled as small sakura circles */
+.kt .replay-button, .kt .soundLink { display: inline-block; vertical-align: middle; margin: 0 0 0 8px; text-decoration: none; }
+.kt .replay-button { width: 30px; height: 30px; line-height: 30px; border-radius: 50%; background: var(--btn); color: var(--btn-fg); font-size: 12px; text-align: center; }
+.kt .replay-button svg { width: 30px; height: 30px; display: block; }
+.kt .replay-button svg circle { fill: var(--btn); stroke: none; }
+.kt .replay-button svg path { fill: var(--btn-fg); stroke: var(--btn-fg); }
+
+@media (max-width: 480px) {
+  body.card { padding: 8px; }
+  .card .kt { padding: 24px 14px 18px; border-radius: 20px; }
+  .kt .word { font-size: 42px; }
+  .kt .sent { font-size: 19px; }
+  .kt .shot.small img { max-width: 80%; }
+}

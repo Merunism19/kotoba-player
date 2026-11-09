@@ -13,6 +13,9 @@ pub struct WordAudio {
     pub source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credit: Option<String>,
+    /// The cached WAV on disk (for Anki cards); not sent to the UI.
+    #[serde(skip)]
+    pub file: PathBuf,
 }
 
 fn cache_file(cache_dir: &Path, source: &str, kana: &str, downstep: Option<usize>) -> PathBuf {
@@ -57,23 +60,27 @@ pub fn word_audio(
         return Ok(None);
     }
     if crate::audio_voicevox::available() {
-        let wav = cached_or(cache_file(cache_dir, "voicevox", reading, downstep), || {
+        let file = cache_file(cache_dir, "voicevox", reading, downstep);
+        let wav = cached_or(file.clone(), || {
             crate::audio_voicevox::synthesize(reading, downstep)
         })?;
         return Ok(Some(WordAudio {
             url: data_url(&wav),
             source: "voicevox",
             credit: Some(crate::audio_voicevox::CREDIT.to_string()),
+            file,
         }));
     }
     if let Some(voice) = crate::audio_windows::japanese_voice() {
-        let wav = cached_or(cache_file(cache_dir, &voice, reading, None), || {
+        let file = cache_file(cache_dir, &voice, reading, None);
+        let wav = cached_or(file.clone(), || {
             crate::audio_windows::synthesize(reading, "ja")
         })?;
         return Ok(Some(WordAudio {
             url: data_url(&wav),
             source: "windows",
             credit: Some(voice),
+            file,
         }));
     }
     Ok(None)

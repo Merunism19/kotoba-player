@@ -1,0 +1,15 @@
+<div class="kt {{PitchClass}}">
+  <div class="word">{{#WordFurigana}}{{furigana:WordFurigana}}{{/WordFurigana}}{{^WordFurigana}}{{Word}}{{/WordFurigana}}</div>
+  <div class="sent">{{#SentenceFurigana}}{{furigana:SentenceFurigana}}{{/SentenceFurigana}}{{^SentenceFurigana}}{{Sentence}}{{/SentenceFurigana}}{{SentenceAudio}}</div>
+  {{#Screenshot}}<div class="shot">{{Screenshot}}</div>{{/Screenshot}}
+</div>
+<script>
+(function () {
+  if (window.__ktTap) return;
+  window.__ktTap = 1;
+  document.addEventListener('click', function (e) {
+    var r = e.target && e.target.closest ? e.target.closest('ruby') : null;
+    if (r) r.classList.toggle('on');
+  });
+})();
+</script>

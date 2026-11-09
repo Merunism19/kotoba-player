@@ -5,15 +5,15 @@ import { player } from '../../lib/player';
 import { activeIndex, lastStartedIndex, nextIndex } from '../../lib/cues';
 import { basename, errMsg, isVideoPath } from '../../lib/format';
 import { isFullscreen, onFileDrop, pickVideo, setFullscreen } from '../../lib/platform';
-import { EN_MODES, get, set, useApp } from '../../app/store';
+import { EN_MODES, get, set, useApp, type Toast } from '../../app/store';
 
 let toastId = 1;
 
-/** Show a glass toast bottom-right; errors stay 6 s, info 2 s. */
-export function toast(message: string, kind: 'error' | 'info' = 'error'): void {
+/** Show a glass toast bottom-right; errors stay 6 s, info 2 s, anything with an action button 6 s. */
+export function toast(message: string, kind: 'error' | 'info' | 'ok' = 'error', action?: Toast['action']): void {
   const id = toastId++;
-  set((s) => ({ toasts: [...s.toasts.slice(-3), { id, message, kind }] }));
-  setTimeout(() => dismissToast(id), kind === 'error' ? 6000 : 2000);
+  set((s) => ({ toasts: [...s.toasts.slice(-3), { id, message, kind, action }] }));
+  setTimeout(() => dismissToast(id), kind === 'error' || action ? 6000 : 2000);
 }
 
 export function dismissToast(id: number): void {
@@ -75,6 +75,8 @@ export async function openFile(path: string): Promise<void> {
       time: (media.resumeMs ?? 0) / 1000,
       duration: (media.durationMs ?? 0) / 1000,
       popup: null,
+      mining: null,
+      minedCueIds: media.minedCueIds ?? [],
       hoverPaused: false,
       screen: 'player',
     });
@@ -91,7 +93,7 @@ export async function openFile(path: string): Promise<void> {
 
 export async function goHome(save = true): Promise<void> {
   if (save) await savePositionNow();
-  set({ screen: 'home', popup: null, hoverPaused: false, media: null, pause: true });
+  set({ screen: 'home', popup: null, mining: null, hoverPaused: false, media: null, pause: true });
   try {
     await player.stop();
   } catch (e) {
@@ -298,7 +300,7 @@ export async function chooseAudio(id: number | null): Promise<void> {
 /** Pause while the pointer is over the subtitle line (setting stub, on by default). */
 export function hoverLine(over: boolean): void {
   const s = get();
-  if (!s.pauseOnHover || s.popup) return;
+  if (!s.pauseOnHover || s.popup || s.mining) return;
   if (over && !s.pause) {
     set({ hoverPaused: true });
     void player.setPause(true);
@@ -308,7 +310,7 @@ export function hoverLine(over: boolean): void {
   }
 }
 
-export function openPopup(p: { unit: WordUnit; line: string; anchor: { x: number; top: number; bottom: number; width: number } }): void {
+export function openPopup(p: { unit: WordUnit; line: string; cueId: number; anchor: { x: number; top: number; bottom: number; width: number } }): void {
   const s = get();
   set({ popup: { ...p, resume: !s.pause || s.hoverPaused }, hoverPaused: false });
   if (!s.pause) void player.setPause(true);

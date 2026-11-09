@@ -50,7 +50,10 @@ fn furigana_and_pitch_come_with_the_entry() {
         .collect();
     assert_eq!(ruby, [("夕焼", Some("ゆうや")), ("け", None)]);
     assert_eq!(e.pitch.len(), 1);
-    assert_eq!((e.pitch[0].downstep, e.pitch[0].pattern), (0, "heiban"));
+    assert_eq!(
+        (e.pitch[0].downstep, e.pitch[0].pattern.as_str()),
+        (0, "heiban")
+    );
     assert_eq!(e.pitch[0].morae, ["ゆ", "う", "や", "け"]);
     assert_eq!(e.senses[0].pos, ["noun"]);
     assert_eq!(e.senses[0].glosses, ["evening glow", "red sunset"]);
@@ -103,7 +106,10 @@ fn conjugated_words_reduce_to_dictionary_form() {
             .collect::<Vec<_>>(),
         [("諦", Some("あきら")), ("める", None)]
     );
-    assert_eq!((e.pitch[0].downstep, e.pitch[0].pattern), (4, "nakadaka"));
+    assert_eq!(
+        (e.pitch[0].downstep, e.pitch[0].pattern.as_str()),
+        (4, "nakadaka")
+    );
 
     let r = dict().lookup_at("食べさせられなかった", 0);
     assert_eq!(

@@ -51,6 +51,7 @@ export default function SubtitleLayer() {
   const en = useApp((s) => englishFor(s, cue));
   const enMode = useApp((s) => s.enMode);
   const popupUnit = useApp((s) => s.popup?.unit);
+  const mined = useApp((s) => (cue ? s.minedCueIds.includes(cue.id) : false));
   const text = cue?.text ?? '';
   const units = useUnits(text);
 
@@ -78,7 +79,7 @@ export default function SubtitleLayer() {
                 e.stopPropagation();
                 const r = e.currentTarget.getBoundingClientRect();
                 if (popupUnit === seg.unit) closePopup();
-                else openPopup({ unit: seg.unit!, line: text, anchor: { x: r.left + r.width / 2, top: r.top, bottom: r.bottom, width: r.width } });
+                else openPopup({ unit: seg.unit!, line: text, cueId: cue.id, anchor: { x: r.left + r.width / 2, top: r.top, bottom: r.bottom, width: r.width } });
               }}
             >
               {seg.text}
@@ -87,6 +88,7 @@ export default function SubtitleLayer() {
             <span key={i} className="unit"><Lines text={seg.text} /></span>
           ),
         )}
+        {mined && <span className="p-mined-dot" role="img" aria-label="Already mined" title="Already added to Anki" />}
       </div>
       {en && enMode !== 'hidden' && (
         <div className={`p-en ${enMode}`} title={enMode === 'blur' ? 'Hover to reveal' : undefined}>

@@ -1,14 +1,16 @@
 /**
  * Dictionary popup: looks up the clicked word (`backend.lookupAt(line, unit.start)`), shows result tabs / entry pager,
- * handles loading, nothing-found and errors, keyboard (R listen, arrows switch, Esc close) and placement
+ * handles loading, nothing-found and errors, keyboard (R listen, arrows switch, Enter / Shift+Enter add to Anki, Esc close),
+ * the Add to Anki button (disabled with a tooltip when Anki is unreachable, spinner while drafting) and placement
  * (above the word with an arrow, flips below when there is no room, clamped inside the window).
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { backend, type LookupResult } from '../../lib/backend';
+import { backend, type AnkiStatus, type LookupResult } from '../../lib/backend';
 import { errMsg } from '../../lib/format';
 import { useApp, type PopupState } from '../../app/store';
 import { closePopup, toast } from './session';
 import PopupEntry from './PopupEntry';
+import { startMining, useAnkiStatus } from './mining';
 import { IconChevron, IconPlus } from './icons';
 import { useWordAudio } from './useWordAudio';
 import './popup.css';
@@ -117,7 +119,11 @@ function Skeleton() {
   );
 }
 
-function Footer({ term, empty }: { term?: string; empty?: boolean }) {
+const ANKI_HELP = 'Open Anki with AnkiConnect installed (add-on 2055492159)';
+
+function Footer({ term, empty, anki, drafting, onAdd }: {
+  term?: string; empty?: boolean; anki: AnkiStatus | null; drafting: boolean; onAdd: (instant: boolean) => void;
+}) {
   const copy = () => {
     if (!term) return;
     navigator.clipboard?.writeText(term).then(
@@ -125,12 +131,25 @@ function Footer({ term, empty }: { term?: string; empty?: boolean }) {
       () => toast('Could not copy to the clipboard'),
     );
   };
+  const offline = anki != null && !anki.connected;
+  const tip = offline ? `${ANKI_HELP}${anki.error ? `
+${anki.error}` : ''}` : undefined;
   return (
     <>
       {!empty && (
         <>
-          <span className="p-tip" title="Anki arrives in Phase 3">
-            <button className="p-btn primary" disabled><IconPlus />Add to Anki</button>
+          <span className={`p-tip${offline ? ' has-tip' : ''}`} data-tip={tip} tabIndex={offline ? 0 : undefined}>
+            <button
+              className={`p-btn primary${drafting ? ' busy' : ''}`}
+              disabled={anki == null || offline}
+              aria-busy={drafting}
+              aria-describedby={offline ? 'anki-tip' : undefined}
+              title={anki?.connected ? 'Add to Anki (Enter) · Shift+click: add instantly' : undefined}
+              onClick={(e) => onAdd(e.shiftKey)}
+            >
+              {drafting ? <span className="p-spin small" /> : <IconPlus />}Add to Anki
+            </button>
+            {offline && <span id="anki-tip" className="p-sr">{tip}</span>}
           </span>
           <button className="p-btn" onClick={copy}>Copy</button>
         </>
@@ -152,9 +171,17 @@ function PopupInner({ popup }: { popup: PopupState }) {
   const result = results[ri];
   const entry = result?.entries[ei];
   const audio = useWordAudio(entry);
+  const anki = useAnkiStatus();
+  const drafting = useApp((s) => s.drafting);
 
-  const sel = useRef({ results, ri, ei, audio });
-  sel.current = { results, ri, ei, audio };
+  const add = (instant: boolean) => {
+    const r = results[ri];
+    const en = r?.entries[ei];
+    if (r && en && anki?.connected) void startMining(r, en, instant);
+  };
+
+  const sel = useRef({ results, ri, ei, audio, add });
+  sel.current = { results, ri, ei, audio, add };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -179,6 +206,13 @@ function PopupInner({ popup }: { popup: PopupState }) {
           }
           break;
         }
+        case 'Enter':
+        case 'NumpadEnter':
+          // Let a focused button handle its own Enter; otherwise Enter = Add to Anki, Shift+Enter = instant.
+          if ((e.target as HTMLElement | null)?.closest?.('button, input, textarea, select')) break;
+          swallow();
+          s.add(e.shiftKey);
+          break;
         case 'ArrowUp':
         case 'ArrowDown': {
           swallow();
@@ -201,7 +235,7 @@ function PopupInner({ popup }: { popup: PopupState }) {
     <Frame
       anchor={anchor}
       label={`Dictionary: ${unit.text}`}
-      footer={<Footer term={entry?.term} empty={lookup.phase !== 'ready'} />}
+      footer={<Footer term={entry?.term} empty={lookup.phase !== 'ready'} anki={anki} drafting={drafting} onAdd={add} />}
     >
       {lookup.phase === 'loading' && <Skeleton />}
       {lookup.phase === 'empty' && (

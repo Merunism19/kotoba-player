@@ -23,13 +23,32 @@ pub struct Core {
     /// Folders searched for bundled data (ffmpeg, `dict/jmdict.sqlite`).
     lib_dirs: Vec<PathBuf>,
     dict: OnceLock<Result<jpdict::Dict, String>>,
+    settings: Mutex<crate::settings::Settings>,
+    /// Card drafts waiting for "Send to Anki", by draft id.
+    drafts: Mutex<HashMap<String, Draft>>,
+    /// AnkiConnect address (loopback; tests point it at a fake).
+    anki_base: String,
+}
+
+/// A card prepared by `draft_card`: fields as stored in Anki plus the media files to upload.
+struct Draft {
+    path: String,
+    cue_id: u32,
+    fields: serde_json::Map<String, serde_json::Value>,
+    /// (file name in Anki's media folder, file on disk)
+    media: Vec<(String, PathBuf)>,
+    tags: Vec<String>,
 }
 
 impl Core {
     /// Build the core: find the bundled tools and load the library store.
     pub fn new(tool_dirs: &[PathBuf], data_dir: PathBuf, cache_dir: PathBuf) -> Core {
         let library = stores::load(&data_dir, Store::Library);
+        let settings = stores::load(&data_dir, Store::Settings);
         Core {
+            settings: Mutex::new(settings),
+            drafts: Mutex::new(HashMap::new()),
+            anki_base: crate::anki::DEFAULT_BASE.to_string(),
             tools: Tools::find(tool_dirs),
             data_dir,
             cache_dir,
@@ -126,6 +145,7 @@ pub struct PreparedMedia {
     #[serde(skip_serializing_if = "Option::is_none")]
     resume_ms: Option<u64>,
     offset_ms: i64,
+    mined_cue_ids: Vec<u32>,
 }
 
 /// Mirrors `RecentItem` in src/lib/backend.ts.
@@ -233,12 +253,19 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
     lock(&core.parsed).retain(|(p, _), _| p == path); // keep memory to the current file
 
     let title = library::title_from_path(path);
-    let (remembered, offset_ms, resume_ms) = {
+    let (remembered, offset_ms, resume_ms, mined_cue_ids) = {
         let lib = lock(&core.library);
         lib.files
             .get(path)
-            .map(|s| ((s.jp_sub_id, s.en_sub_id), s.offset_ms, s.resume_ms()))
-            .unwrap_or(((None, None), 0, None))
+            .map(|s| {
+                (
+                    (s.jp_sub_id, s.en_sub_id),
+                    s.offset_ms,
+                    s.resume_ms(),
+                    s.mined_cue_ids.clone(),
+                )
+            })
+            .unwrap_or(((None, None), 0, None, Vec::new()))
     };
     let (jp_sub_id, en_sub_id) = choose_subs(core, path, &probe.tracks, remembered);
 
@@ -270,6 +297,7 @@ fn prepare(core: &Core, path: &str) -> Result<PreparedMedia, String> {
         signs_ass_path,
         resume_ms,
         offset_ms,
+        mined_cue_ids,
     })
 }
 
@@ -486,6 +514,378 @@ pub fn startup_files() -> Vec<String> {
         .collect()
 }
 
+// ---- Anki mining -------------------------------------------------------------------------------
+
+impl Core {
+    fn anki(&self) -> crate::anki::Client {
+        crate::anki::Client::new(&self.anki_base, None)
+    }
+}
+
+/// Is Anki reachable, and which decks exist.
+#[tauri::command]
+pub async fn anki_status(
+    core: tauri::State<'_, Arc<Core>>,
+) -> Result<crate::anki::AnkiStatus, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || core.anki().status())
+        .await
+        .map_err(|e| format!("internal error: {e}"))
+}
+
+/// Mirrors `MineRequest` in src/lib/backend.ts.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MineRequest {
+    path: String,
+    jp_sub_id: u32,
+    en_sub_id: Option<u32>,
+    cue_id: u32,
+    start: usize,
+    len: usize,
+    entry: jpdict::DictEntry,
+    #[serde(default)]
+    senses: Vec<usize>,
+    frame_ms: u64,
+    offset_ms: i64,
+    audio_id: Option<u32>,
+}
+
+/// Mirrors `CardDraft` in src/lib/backend.ts.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CardDraft {
+    draft_id: String,
+    fields: serde_json::Map<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    screenshot_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sentence_audio_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    word_audio_url: Option<String>,
+    translation_source: &'static str,
+    duplicates: Vec<i64>,
+    deck: String,
+    decks: Vec<String>,
+}
+
+fn data_url_of(path: &Path, mime: &str) -> Option<String> {
+    std::fs::read(path).ok().map(|b| {
+        format!(
+            "data:{mime};base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(b)
+        )
+    })
+}
+
+fn draft(core: &Core, req: MineRequest) -> Result<CardDraft, String> {
+    use crate::mining;
+    let tools = core.tools()?;
+    let video = Path::new(&req.path);
+    let jp = core.track(&req.path, req.jp_sub_id)?;
+    let cue = jp
+        .cues
+        .iter()
+        .find(|c| c.id == req.cue_id)
+        .ok_or_else(|| "That subtitle line is no longer available.".to_string())?;
+
+    // Media (each part degrades to "absent" instead of failing the whole card).
+    let key = format!(
+        "{:016x}",
+        media::fnv1a(format!("{}|{}|{}", req.path, req.cue_id, req.frame_ms).as_bytes())
+    );
+    let cards = core.cache_dir.join("cards");
+    let shot_name = format!("kotoba_{key}.webp");
+    let shot = cards.join(&shot_name);
+    let shot_ok = shot.is_file()
+        || media::card_screenshot(tools, video, req.frame_ms, &shot)
+            .map_err(|e| eprintln!("[kotoba] {e}"))
+            .is_ok();
+    let audio_name = format!("kotoba_{key}_s.mp3");
+    let clip = cards.join(&audio_name);
+    let from = (cue.start_ms + req.offset_ms - 250).max(0) as u64;
+    let to = (cue.end_ms + req.offset_ms + 250).max(0) as u64;
+    let audio_index = req.audio_id.unwrap_or(1).saturating_sub(1);
+    let clip_ok = clip.is_file()
+        || media::audio_clip(tools, video, audio_index, from, to, &clip)
+            .map_err(|e| eprintln!("[kotoba] {e}"))
+            .is_ok();
+    let downstep = req.entry.pitch.first().map(|p| p.downstep as usize);
+    let word_audio = crate::audio::word_audio(&core.cache_dir, &req.entry.reading, downstep)
+        .unwrap_or_else(|e| {
+            eprintln!("[kotoba] word audio: {e}");
+            None
+        });
+
+    // Sentence furigana from the tokenizer's units.
+    let units: Vec<mining::Unit> = core
+        .tokenizer()?
+        .word_units(&cue.text)
+        .into_iter()
+        .map(|u| mining::Unit {
+            start: u.start,
+            len: u.len,
+            text: u.text,
+            reading: u.reading,
+        })
+        .collect();
+
+    // Translation: the aligned English subtitle lines (DeepL/Ollama fallbacks come in Phase 4).
+    let translation = req
+        .en_sub_id
+        .and_then(|en_id| core.track(&req.path, en_id).ok())
+        .map(|en| {
+            let pairs = subtitles::align(std::slice::from_ref(cue), &en.cues);
+            pairs
+                .into_iter()
+                .flat_map(|(_, ids)| ids)
+                .filter_map(|id| {
+                    en.cues
+                        .iter()
+                        .find(|c| c.id == id)
+                        .map(|c| c.text.replace('\n', " "))
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default();
+
+    let title = lock(&core.library)
+        .files
+        .get(&req.path)
+        .map(|s| s.title.clone())
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| library::title_from_path(&req.path));
+    let e = &req.entry;
+    let mut fields = serde_json::Map::new();
+    let mut put = |k: &str, v: String| {
+        fields.insert(k.to_string(), serde_json::Value::String(v));
+    };
+    put("Word", mining::escape(&e.term));
+    put("WordFurigana", mining::anki_furigana(&e.furigana));
+    put("WordReading", mining::escape(&e.reading));
+    put(
+        "PitchPattern",
+        e.pitch.first().map(mining::pitch_svg).unwrap_or_default(),
+    );
+    put(
+        "PitchClass",
+        e.pitch
+            .first()
+            .map(|p| p.pattern.clone())
+            .unwrap_or_default(),
+    );
+    put("Meaning", mining::meaning_html(e, &req.senses));
+    put(
+        "Sentence",
+        mining::bold_sentence(&cue.text, req.start, req.len),
+    );
+    put(
+        "SentenceFurigana",
+        mining::sentence_furigana(&units, req.start, req.len),
+    );
+    put("SentenceTranslation", mining::escape(&translation));
+    put(
+        "Screenshot",
+        if shot_ok {
+            format!("<img src=\"{shot_name}\">")
+        } else {
+            String::new()
+        },
+    );
+    put(
+        "SentenceAudio",
+        if clip_ok {
+            format!("[sound:{audio_name}]")
+        } else {
+            String::new()
+        },
+    );
+    let word_audio_name = word_audio.as_ref().map(|w| {
+        let ext = w
+            .file
+            .extension()
+            .and_then(|x| x.to_str())
+            .unwrap_or("wav")
+            .to_string();
+        format!(
+            "kotoba_w_{:016x}.{ext}",
+            media::fnv1a(w.file.to_string_lossy().as_bytes())
+        )
+    });
+    put(
+        "WordAudio",
+        word_audio_name
+            .as_ref()
+            .map(|n| format!("[sound:{n}]"))
+            .unwrap_or_default(),
+    );
+    let start_ms = (cue.start_ms + req.offset_ms).max(0) as u64;
+    put(
+        "Source",
+        mining::escape(&format!("{title} · {}", mining::clock(start_ms))),
+    );
+
+    let mut media_files = Vec::new();
+    if shot_ok {
+        media_files.push((shot_name, shot.clone()));
+    }
+    if clip_ok {
+        media_files.push((audio_name, clip.clone()));
+    }
+    if let (Some(n), Some(w)) = (&word_audio_name, &word_audio) {
+        media_files.push((n.clone(), w.file.clone()));
+    }
+
+    let status = core.anki().status();
+    let duplicates = if status.connected {
+        core.anki()
+            .find_duplicates(&mining::escape(&e.term))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let deck = lock(&core.settings).anki_deck.clone();
+    let mut tags = vec!["kotoba".to_string()];
+    let show = mining::show_tag(&title);
+    if !show.is_empty() {
+        tags.push(show);
+    }
+    tags.extend(lock(&core.settings).anki_tags.iter().cloned());
+
+    let draft_id = format!("{key}-{:x}", library::now_ms());
+    lock(&core.drafts).insert(
+        draft_id.clone(),
+        Draft {
+            path: req.path.clone(),
+            cue_id: req.cue_id,
+            fields: fields.clone(),
+            media: media_files,
+            tags,
+        },
+    );
+    Ok(CardDraft {
+        draft_id,
+        fields,
+        screenshot_url: shot_ok.then(|| data_url_of(&shot, "image/webp")).flatten(),
+        sentence_audio_url: clip_ok.then(|| data_url_of(&clip, "audio/mpeg")).flatten(),
+        word_audio_url: word_audio.map(|w| w.url),
+        translation_source: if translation.is_empty() {
+            "none"
+        } else {
+            "subtitles"
+        },
+        duplicates,
+        deck,
+        decks: status.decks,
+    })
+}
+
+/// Make the card's media and fields for the clicked word (nothing is sent to Anki yet).
+#[tauri::command]
+pub async fn draft_card(
+    core: tauri::State<'_, Arc<Core>>,
+    req: MineRequest,
+) -> Result<CardDraft, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || draft(&core, req))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// The user's edits in the mining preview.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CardEdits {
+    sentence_translation: Option<String>,
+    deck: Option<String>,
+}
+
+fn add(core: &Core, draft_id: &str, edits: CardEdits) -> Result<i64, String> {
+    let (path, cue_id, mut fields, media_files, tags) = {
+        let drafts = lock(&core.drafts);
+        let d = drafts
+            .get(draft_id)
+            .ok_or_else(|| "This card draft expired; click the word again.".to_string())?;
+        (
+            d.path.clone(),
+            d.cue_id,
+            d.fields.clone(),
+            d.media.clone(),
+            d.tags.clone(),
+        )
+    };
+    if let Some(t) = edits.sentence_translation {
+        fields.insert(
+            "SentenceTranslation".into(),
+            serde_json::Value::String(crate::mining::escape(t.trim())),
+        );
+    }
+    let deck = edits
+        .deck
+        .filter(|d| !d.trim().is_empty())
+        .unwrap_or_else(|| lock(&core.settings).anki_deck.clone());
+    let client = core.anki();
+    client.ensure_model(&crate::mining::note_type())?;
+    client.create_deck(&deck)?;
+    for (name, file) in &media_files {
+        client.store_media(name, file)?;
+    }
+    let id = client.add_note(&crate::anki::NewNote {
+        deck_name: deck.clone(),
+        model_name: crate::anki::MODEL_NAME.to_string(),
+        fields,
+        tags,
+    })?;
+    lock(&core.drafts).remove(draft_id);
+    {
+        let mut lib = lock(&core.library);
+        let e = lib.entry(&path);
+        if !e.mined_cue_ids.contains(&cue_id) {
+            e.mined_cue_ids.push(cue_id);
+        }
+        core.save_library(&lib);
+    }
+    {
+        let mut s = lock(&core.settings);
+        if s.anki_deck != deck {
+            s.anki_deck = deck;
+            if let Err(e) = stores::save(&core.data_dir, Store::Settings, &*s) {
+                eprintln!("[kotoba] saving settings failed: {e}");
+            }
+        }
+    }
+    Ok(id)
+}
+
+/// Send a draft to Anki; returns the new note id.
+#[tauri::command]
+pub async fn add_card(
+    core: tauri::State<'_, Arc<Core>>,
+    draft_id: String,
+    edits: CardEdits,
+) -> Result<i64, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || add(&core, &draft_id, edits))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Open notes in Anki's browser.
+#[tauri::command]
+pub async fn show_in_anki(
+    core: tauri::State<'_, Arc<Core>>,
+    note_ids: Vec<i64>,
+) -> Result<(), String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let ids: Vec<String> = note_ids.iter().map(|i| i.to_string()).collect();
+        core.anki().browse(&format!("nid:{}", ids.join(",")))
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,6 +938,149 @@ mod tests {
         let pairs = subtitles::align(&jp.cues, &en.cues);
         assert!(pairs.iter().filter(|(_, e)| !e.is_empty()).count() >= 7);
         assert!(tmp.join("data/library.json").is_file());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// The whole mining flow on the real sample against a fake AnkiConnect: real screenshot and
+    /// MP3 clip, furigana, then exactly the expected AnkiConnect actions, and the cue is marked mined.
+    #[test]
+    fn mine_end_to_end_with_fake_anki() {
+        use serde_json::json;
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let sample = root.join("../samples/hi10p-ass.mkv");
+        let tools_dir = root.join("lib");
+        if !sample.is_file() || Tools::find(std::slice::from_ref(&tools_dir)).is_none() {
+            eprintln!("skipping: samples or bundled tools missing");
+            return;
+        }
+        let (base, seen) = crate::anki::tests::fake(vec![
+            ("version", json!(6)),
+            ("deckNames", json!(["Default"])),
+            ("findNotes", json!([])),
+            ("modelNames", json!(["Basic"])),
+            ("createModel", json!({})),
+            ("createDeck", json!(1)),
+            ("storeMediaFile", json!("stored")),
+            ("addNote", json!(1_700_000_000_001i64)),
+        ]);
+        let tmp = std::env::temp_dir().join(format!("kp-mine-{}", std::process::id()));
+        let mut core = Core::new(&[tools_dir], tmp.join("data"), tmp.join("cache"));
+        core.anki_base = base;
+        let path = sample
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        prepare(&core, &path).unwrap();
+        let jp = core.track(&path, 1).unwrap();
+        let cue = jp
+            .cues
+            .iter()
+            .find(|c| c.text.starts_with("もう諦めない"))
+            .unwrap()
+            .clone();
+        let entry: jpdict::DictEntry = serde_json::from_value(json!({
+            "id": 1, "term": "諦める", "reading": "あきらめる",
+            "furigana": [{"text": "諦", "ruby": "あきら"}, {"text": "める"}],
+            "senses": [{"glosses": ["to give up", "to abandon"], "pos": ["Ichidan verb"], "notes": []},
+                       {"glosses": ["to resign oneself (to)"], "pos": [], "notes": []}],
+            "pitch": [{"downstep": 4, "pattern": "nakadaka", "morae": ["あ","き","ら","め","る"]}],
+            "common": true, "otherForms": []
+        }))
+        .unwrap();
+        let req = MineRequest {
+            path: path.clone(),
+            jp_sub_id: 1,
+            en_sub_id: Some(2),
+            cue_id: cue.id,
+            start: 2,
+            len: 4,
+            entry,
+            senses: vec![0],
+            frame_ms: 2_000,
+            offset_ms: 0,
+            audio_id: None,
+        };
+        let d = draft(&core, req).unwrap();
+        let f = |k: &str| d.fields[k].as_str().unwrap().to_string();
+        assert_eq!(f("Word"), "諦める");
+        assert_eq!(f("WordFurigana"), "諦[あきら]める");
+        assert_eq!(f("Sentence"), "もう<b>諦めない</b>って決めたんだ。");
+        assert!(
+            f("SentenceFurigana").starts_with("もう<b> 諦[あきら]めない</b>"),
+            "{}",
+            f("SentenceFurigana")
+        );
+        assert_eq!(
+            f("SentenceTranslation"),
+            "I decided I&#39;m not giving up anymore.".replace("&#39;", "'")
+        );
+        assert_eq!(f("Meaning"), "<ol><li>to give up; to abandon</li></ol>");
+        assert_eq!(f("PitchClass"), "nakadaka");
+        assert!(
+            f("Screenshot").starts_with("<img src=\"kotoba_")
+                && f("SentenceAudio").starts_with("[sound:kotoba_")
+        );
+        assert!(
+            d.screenshot_url
+                .as_deref()
+                .unwrap()
+                .starts_with("data:image/webp;base64,")
+        );
+        assert!(
+            d.sentence_audio_url
+                .as_deref()
+                .unwrap()
+                .starts_with("data:audio/mpeg;base64,")
+        );
+        assert_eq!(d.translation_source, "subtitles");
+        assert_eq!(d.deck, crate::settings::DEFAULT_DECK);
+
+        let id = add(
+            &core,
+            &d.draft_id,
+            CardEdits {
+                sentence_translation: Some("Edited <ok>".into()),
+                deck: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(id, 1_700_000_000_001);
+        let reqs = seen.lock().unwrap().clone();
+        let actions: Vec<&str> = reqs.iter().map(|r| r["action"].as_str().unwrap()).collect();
+        let tail: Vec<&str> = actions
+            .iter()
+            .copied()
+            .skip_while(|a| *a != "modelNames")
+            .collect();
+        assert_eq!(tail[..3], ["modelNames", "createModel", "createDeck"]);
+        assert_eq!(
+            tail.iter().filter(|a| **a == "storeMediaFile").count(),
+            2,
+            "screenshot + sentence audio"
+        );
+        assert_eq!(*tail.last().unwrap(), "addNote");
+        let note = &reqs.last().unwrap()["params"]["note"];
+        assert_eq!(note["modelName"], crate::anki::MODEL_NAME);
+        assert_eq!(note["fields"]["SentenceTranslation"], "Edited &lt;ok&gt;");
+        assert!(
+            note["tags"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|t| t == "kotoba")
+        );
+        for r in &reqs {
+            let a = r["action"].as_str().unwrap();
+            assert!(
+                !a.starts_with("delete") && !a.starts_with("update")
+                    || a.starts_with("updateModel"),
+                "unexpected {a}"
+            );
+        }
+        // The cue is now marked as mined for this file.
+        let again = prepare(&core, &path).unwrap();
+        assert_eq!(again.mined_cue_ids, vec![cue.id]);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

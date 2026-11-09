@@ -1,20 +1,20 @@
 //! The JSON the front end receives. Field names and optionality mirror `src/lib/backend.ts`.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Pitch accent of one reading (Tokyo dialect, from Kanjium).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pitch {
     /// Mora after which the pitch drops; 0 = no drop (heiban).
     pub downstep: u32,
     /// `heiban`, `atamadaka`, `nakadaka` or `odaka`.
-    pub pattern: &'static str,
+    pub pattern: String,
     pub morae: Vec<String>,
 }
 
 /// One meaning of an entry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Sense {
     pub glosses: Vec<String>,
@@ -23,7 +23,7 @@ pub struct Sense {
 }
 
 /// One furigana segment: `ruby` is absent for plain kana.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Furigana {
     pub text: String,
@@ -32,7 +32,7 @@ pub struct Furigana {
 }
 
 /// A dictionary entry as shown in the popup.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DictEntry {
     /// JMdict sequence number.
@@ -50,7 +50,7 @@ pub struct DictEntry {
 }
 
 /// Result of looking up the text at a position; one per matched length, longest first.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LookupResult {
     /// Offset (code points) of the match in the line.

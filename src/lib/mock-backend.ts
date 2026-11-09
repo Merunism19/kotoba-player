@@ -1,7 +1,12 @@
-/** Fake backend for screenshots: deterministic "Sunset Journey - 07" with the 7 sample lines, English, hand-made word units, 3 recents and a mock dictionary (mock-dict.ts). */
-import { setBackend, type Backend, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
+/**
+ * Fake backend for screenshots: deterministic "Sunset Journey - 07" with the 7 sample lines, English, hand-made word units, 3 recents,
+ * a mock dictionary (mock-dict.ts) and Anki mining (cards from mock-card.ts). Params: anki=off (Anki unreachable), dup=1 (the word is
+ * already in Anki), notrans=1 (no English line), mined=1,3 (cue ids already mined), adderr=1 (addCard fails). Calls are recorded in window.__mock.
+ */
+import { setBackend, type Backend, type MineRequest, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
 import { mockParams } from './env';
 import { mockLookup, mockWordAudio } from './mock-dict';
+import { mockDraft } from './mock-card';
 
 const LINES: [number, number, string, string][] = [
   [1.0, 4.0, 'もう諦めないって決めたんだ。', "I decided I'm not giving up anymore."],
@@ -63,6 +68,12 @@ function unitsFor(text: string): WordUnit[] {
   });
 }
 
+const DECKS = ['Kotoba Mining', 'Japanese::Anime'];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Mining calls the mock received, for tests (window.__mock). */
+const mockLog: { drafts: MineRequest[]; added: { draftId: string; edits: { sentenceTranslation?: string; deck?: string } }[] } = { drafts: [], added: [] };
+(window as unknown as { __mock: typeof mockLog }).__mock = mockLog;
+
 const backend: Backend = {
   async prepareMedia(path) {
     if (/broken/i.test(path)) throw new Error('Could not open "broken.mkv": the file is damaged or uses an unsupported codec.');
@@ -75,6 +86,7 @@ const backend: Backend = {
       enSubId: 2,
       resumeMs: 0,
       offsetMs,
+      minedCueIds: (mockParams.get('mined') ?? '').split(',').filter(Boolean).map(Number),
     };
     return m;
   },
@@ -99,6 +111,34 @@ const backend: Backend = {
   },
   lookupAt: mockLookup,
   wordAudio: mockWordAudio,
+  async ankiStatus() {
+    if (mockParams.get('anki') === 'off') return { connected: false, decks: [], error: "Anki isn't reachable" };
+    return { connected: true, version: 6, decks: DECKS };
+  },
+  async draftCard(req) {
+    await sleep(120);
+    const cue = jpCues.find((c) => c.id === req.cueId);
+    if (!cue) throw new Error('mock: unknown cue ' + req.cueId);
+    const translation = mockParams.has('notrans') ? '' : (enCues[req.cueId - 1]?.text ?? '');
+    mockLog.drafts.push(req);
+    return mockDraft({
+      req,
+      units: unitsFor(cue.text),
+      translation,
+      title: MOCK_TITLE,
+      id: `mock-draft-${mockLog.drafts.length}`,
+      duplicates: mockParams.has('dup') ? [1700000000000] : [],
+      deck: DECKS[0],
+      decks: DECKS,
+    });
+  },
+  async addCard(draftId, edits) {
+    await sleep(300);
+    if (mockParams.has('adderr')) throw new Error('AnkiConnect: cannot create note because it is a duplicate');
+    mockLog.added.push({ draftId, edits });
+    return 1700000000001 + mockLog.added.length;
+  },
+  async showInAnki() {},
 };
 
 export function installMockBackend(): void {

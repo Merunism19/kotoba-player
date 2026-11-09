@@ -18,6 +18,8 @@ pub struct FileState {
     pub last_opened_ms: u64,
     /// Position the current thumbnail was taken at.
     pub thumb_pos_ms: Option<u64>,
+    /// Japanese cue ids already sent to Anki (gold marks on the seek bar).
+    pub mined_cue_ids: Vec<u32>,
 }
 
 /// The whole library store (see `stores::Store::Library`).
