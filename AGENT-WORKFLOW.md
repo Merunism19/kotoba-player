@@ -410,3 +410,8 @@ Changelog (newest last; each line: what changed — evidence):
   (a play triangle) can read as generic; a cut-out glyph still reads at 16 px if the outer shape carries it. To change
   a bundler's generated installer, read its generated script after one build (Tauri:
   `target/release/nsis/x64/installer.nsi`) and hook its own functions rather than replacing the template.
+- 2026-11-09: Going public. Scan the whole history first: secrets, media, and the author emails (`git log --all
+  --format='%an <%ae>'`). GitHub keeps every PR's original commits in read-only `refs/pull/*`, so rewriting history in
+  place does NOT remove an email from a repo that has PRs. Only a fresh repo with the rewritten history does. Keep the
+  old one renamed and private, compare tree hashes old vs new for every tag, and set the checkout's `user.email`
+  to the no-reply address so the leak doesn't come back.

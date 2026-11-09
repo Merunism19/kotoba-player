@@ -5,7 +5,10 @@ A Windows desktop video player for anime (MKV and everything mpv plays) with cli
 subtitles: click a word → dictionary popup (English meaning, kana reading, pitch accent, audio)
 → one click makes an Anki card (word, sentence, screenshot, audio; translations on the back,
 hover furigana). Full spec: `docs/DESIGN.md`. Visual target: `docs/design/mockup.html`.
-Repo: `Merunism19/kotoba-player` (private GitHub).
+Repo: `Merunism19/kotoba-player` (**public** since 2026-11-09, history rewritten so every commit uses the owner's
+GitHub no-reply address; keep it that way: this checkout's `git config user.email` is set to it). The old private
+repo with PRs #1–#11 and releases v1.0.0/v1.0.3 is `Merunism19/kotoba-player-archive` (remote `archive`); the
+public repo starts with no PRs and only the v1.0.4 release.
 
 ## Owner and their rules
 - Owner works on Windows 11; wants **everything pretty** — design quality is a requirement, not polish.
@@ -74,7 +77,7 @@ meanings and translation (screenshot: artifacts/probe/anki-back.png, local). The
 Word audio verified with the official VOICEVOX engine 0.26.0 (owner-approved test run, removed afterwards): 🔊 in the
 popup plays 四国めたん with the credit shown; the card preview carries word + sentence audio.
 All five phases built, merged to main (PRs #2–#5, merge commits) and released as v1.0.0:
-https://github.com/Merunism19/kotoba-player/releases/tag/v1.0.0 (installer `Kotoba Player_1.0.0_x64-setup.exe`).
+https://github.com/Merunism19/kotoba-player-archive/releases/tag/v1.0.0 (installer `Kotoba Player_1.0.0_x64-setup.exe`).
 - Phase 4: settings drawer (Anki deck/tags, DeepL key in the Windows Credential Manager, Ollama model,
   English line mode, subtitle size, pause on hover, offset step, accent palettes, About/attribution),
   transcript sidebar (T), dropping .ass/.srt onto the player, "Sync to English" (alass, persisted per file,
