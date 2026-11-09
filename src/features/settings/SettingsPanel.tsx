@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { backend } from '../../lib/backend';
 import type { AnkiStatus, Settings, UserDictionary } from '../../lib/backend';
 import { pickDictionaryZip } from '../../lib/platform';
+import { useFocusTrap } from '../../lib/focus';
 import { errMsg } from '../../lib/format';
 import { useApp } from '../../app/store';
 import { IconCheck, IconClose } from '../player/icons';
@@ -315,6 +316,8 @@ export default function SettingsPanel() {
   useEffect(() => {
     if (open) panel.current?.focus();
   }, [open]);
+  // Tab stays inside the drawer; closing returns focus to whatever opened it.
+  useFocusTrap(panel, open);
   // On the player Esc is routed by the hotkeys (it also closes the popup); on home we listen here.
   useEffect(() => {
     if (!open || screen !== 'home') return;

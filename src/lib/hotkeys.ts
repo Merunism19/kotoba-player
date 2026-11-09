@@ -19,10 +19,17 @@ export interface HotkeyActions {
 /** Install the listener; returns the remover. Ignored while typing in a field. */
 export function installHotkeys(a: HotkeyActions): () => void {
   const onKey = (e: KeyboardEvent) => {
-    const t = e.target as HTMLElement | null;
+    // The target may be the window/document itself (no tagName/closest): only elements are checked.
+    const t = e.target instanceof HTMLElement ? e.target : null;
     if (t && (t.tagName === 'INPUT' && (t as HTMLInputElement).type !== 'range' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (t?.closest('[data-no-hotkeys]') && e.code !== 'Escape') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Holding a key: only seeking, volume and offset repeat; toggles (Space, F, E, T) and line
+    // jumps would flicker or spam (review 2026-11-08).
+    if (e.repeat && !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyZ', 'KeyX'].includes(e.code)) {
+      e.preventDefault();
+      return;
+    }
     let handled = true;
     switch (e.code) {
       case 'Space': a.togglePause(); break;

@@ -401,3 +401,7 @@ Changelog (newest last; each line: what changed — evidence):
   The orchestrator then confirmed the fix in a RELEASE build (where the real CSP applies): the guarded command
   refused `run` while playback still worked. Also: scripted edits mangled escapes a 4th time (a throwaway
   probe test) — the compiler caught it each time, so the rule stays a rule, not a guard.
+- 2026-11-08: Without the target content (no real episode available), a GENERATED stress input of realistic size
+  and shape found what three code reviews and 60+ UI tests missed: a 24-minute fansub-style file (overlapping speakers,
+  karaoke OP, signs) showed only one of two simultaneous lines in 2 of 25 random seeks on the released build. Build the
+  realistic stress input early (size, overlaps, edge styling), drive the real app over it, and keep the driver.

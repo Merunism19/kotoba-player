@@ -138,9 +138,17 @@ export async function startApp(): Promise<() => void> {
       await player.start({
         onProp: ({ name, value }) => {
           switch (name) {
-            case 'time-pos': set({ time: value as number }); break;
+            case 'time-pos':
+              // Ignore the old file's clock while opening, and stale positions that were in flight when
+              // we seeked (they made rapid D, D skip only one line) — review 2026-11-08.
+              if (get().opening || performance.now() < seekGuardUntil) break;
+              set({ time: value as number });
+              break;
             case 'duration': set({ duration: value as number }); break;
-            case 'pause': set({ pause: value as boolean }); break;
+            case 'pause':
+              // Playing again by any route (Space, button, mpv) ends a hover-pause.
+              set(value ? { pause: true } : { pause: false, hoverPaused: false });
+              break;
             case 'volume': set({ volume: value as number }); break;
             case 'speed': set({ speed: value as number }); break;
           }
@@ -186,18 +194,25 @@ export async function startApp(): Promise<() => void> {
 // ---- playback controls -------------------------------------------------------------------------
 
 export function togglePause(): void {
+  // A manual pause/play is the user's decision: a later hover-leave must not override it.
+  set({ hoverPaused: false });
   void player.setPause(!get().pause);
 }
+
+/** time-pos events before this moment are ignored (they were in flight when we seeked). */
+let seekGuardUntil = 0;
 
 export function seekTo(sec: number, exact = false): void {
   const d = get().duration;
   const t = Math.max(0, d ? Math.min(sec, d) : sec);
+  seekGuardUntil = performance.now() + 150;
   set({ time: t });
   void player.seek(t, 'absolute', exact);
 }
 
 export function seekBy(delta: number): void {
   const d = get().duration;
+  seekGuardUntil = performance.now() + 150;
   set((s) => ({ time: Math.max(0, d ? Math.min(s.time + delta, d) : s.time + delta) }));
   void player.seek(delta, 'relative');
 }
@@ -244,13 +259,20 @@ export function currentDialogue(): Cue[] {
 
 /** Playback time in subtitle time (ms): subtitles are late by `offsetMs`, so shift the clock back. */
 const subTimeMs = () => get().time * 1000 - get().offsetMs;
-const mediaSec = (cue: Cue) => (cue.startMs + get().offsetMs) / 1000;
+// +1 ms: float rounding of an exact seek could otherwise land a hair before the line starts.
+const mediaSec = (cue: Cue) => (cue.startMs + get().offsetMs + 1) / 1000;
 
 export function seekLine(dir: -1 | 1): void {
   const cues = currentDialogue();
   const t = subTimeMs();
-  const i = dir < 0 ? lastStartedIndex(cues, t - 500) : nextIndex(cues, t + 50);
-  if (i >= 0) seekTo(mediaSec(cues[i]), true);
+  let i = dir < 0 ? lastStartedIndex(cues, t - 500) : nextIndex(cues, t + 50);
+  // At the edges: A before the first line goes to the first line; D after the last says so.
+  if (i < 0 && dir < 0 && cues.length) i = 0;
+  if (i < 0) {
+    if (dir > 0 && cues.length) toast('That was the last line.', 'info');
+    return;
+  }
+  seekTo(mediaSec(cues[i]), true);
 }
 
 /** Jump back to the start of the line being shown (or the one that just ended). */
@@ -407,7 +429,10 @@ export function hoverLine(over: boolean): void {
 
 export function openPopup(p: { unit: WordUnit; line: string; cueId: number; anchor: { x: number; top: number; bottom: number; width: number } }): void {
   const s = get();
-  set({ popup: { ...p, resume: !s.pause || s.hoverPaused }, hoverPaused: false });
+  // Clicking another word while a popup is open keeps the first popup's decision (playback was
+  // already paused by that popup, so `!s.pause` would wrongly say "don't resume") — review 2026-11-08.
+  const resume = s.popup ? s.popup.resume : !s.pause || s.hoverPaused;
+  set({ popup: { ...p, resume }, hoverPaused: false });
   if (!s.pause) void player.setPause(true);
 }
 

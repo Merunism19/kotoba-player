@@ -56,7 +56,13 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
-v1.0.2 — tooling/docs only since the v1.0.0 release. Edge-case pass on the release build (2026-11-08), no bugs found:
+v1.0.3 — long-session fixes after a 24-min episode stress test (`node scripts/make-episode.mjs`, `scripts/dev/stress.mjs`)
+and a UI/state review: overlapping speakers now both shown (the released v1.0.0 showed only one in 2 of 25 random
+seeks; 0 after the fix), popup "resume" kept across a second word click, stale hover-pause cleared, typing in fields
+not eaten by the popup, held keys don't repeat toggles, Esc closes menus without leaving fullscreen, seek-bar ticks
+memoised, stale time events ignored after seeks/while opening, A/D at the edges, keyboard word lookup (Tab + Enter),
+focus traps in the mining preview and Settings. Stress numbers: open 2.6 s, 0 dropped frames (1080p HEVC 10-bit, d3d11va),
+lookups p50 ~5 ms, DOM stable over 60 s.
 dual audio + attached font + a Japanese file name with a comma (card audio taken from the selected dub, measured
 660 Hz), untagged mov_text subs in MP4 (recognised as Japanese), external Shift_JIS `Ep.ja.srt`. Reproduce with
 `node scripts/make-samples.mjs <full ffmpeg>` → `samples/edge/`, then `scripts/dev/probe.sh`.
@@ -96,3 +102,4 @@ DeepL with a real key, AnkiDroid/AnkiMobile rendering — see DEVICE-TEST-PLAN.m
 - 2026-11-08: Phase 3: card templates + mining UI (helpers), AnkiConnect client + card builder (orchestrator); real-app run against a fake AnkiConnect.
 - 2026-11-08: Phases 4–5: settings/transcript/sync UI + Yomitan import (helpers), translation/sync/settings/packaging (orchestrator); 2 reviewers, all findings fixed; v1.0.0 installer.
 - 2026-11-08: Owner approved; PRs #2–#5 merged in order, v1.0.0 released on GitHub.
+- 2026-11-08: Long-session fixes from a 24-min stress episode + UI/state review (v1.0.3).

@@ -1,5 +1,5 @@
 /** Bottom control bar: seek bar, play/pause, line navigation, time, speed menu, volume, fullscreen. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fmtTime } from '../../lib/format';
 import { useApp } from '../../app/store';
 import SeekBar from './SeekBar';
@@ -12,6 +12,13 @@ const fmtSpeed = (s: number) => `${Number(s.toFixed(2))}×`;
 function SpeedMenu() {
   const speed = useApp((s) => s.speed);
   const [open, setOpen] = useState(false);
+  // Esc closes the menu (and only the menu: the global Esc skips fullscreen exit while a menu is open).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
   return (
     <div className="p-speed">
       <button className="p-chip button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} title="Playback speed">

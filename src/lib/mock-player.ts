@@ -8,6 +8,7 @@ export interface MockHooks {
   setTime(sec: number): void;
   setPaused(p: boolean): void;
   getTime(): number;
+  isPaused(): boolean;
 }
 
 export function installMockPlayer(): MockHooks {
@@ -70,5 +71,6 @@ export function installMockPlayer(): MockHooks {
       emit('pause', p);
     },
     getTime: () => time,
+    isPaused: () => paused,
   };
 }

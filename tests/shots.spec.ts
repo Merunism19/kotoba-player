@@ -37,6 +37,73 @@ test('player-playing', async ({ page }) => {
   await shot(page, 'player-playing');
 });
 
+test('unit: activeIndices keeps overlapping lines', async ({ page }) => {
+  await page.goto('/?mock=1');
+  const r = await page.evaluate(async () => {
+    const { activeIndices } = await import('/src/lib/cues.ts');
+    const c = (id: number, s: number, e: number) => ({ id, startMs: s, endMs: e, text: String(id), kind: 'dialogue' as const });
+    const cues = [c(0, 0, 5000), c(1, 1000, 2000), c(2, 3000, 9000), c(3, 4000, 6000), c(4, 10000, 11000)];
+    return {
+      a: activeIndices(cues, 4500), // 0, 2 and 3 all showing
+      b: activeIndices(cues, 9500), // gap
+      c: activeIndices(cues, 1500, 2), // max 2 → the two latest
+      d: activeIndices([], 0),
+    };
+  });
+  expect(r).toEqual({ a: [0, 2, 3], b: [], c: [0, 1], d: [] });
+});
+
+test('player-overlap', async ({ page }) => {
+  // Two speakers at once: both lines visible and clickable (the earlier one used to vanish).
+  await openPlayer(page, '&overlap=1', 13.0);
+  await expect(page.locator('.p-jp')).toHaveCount(2);
+  await expect(page.locator('.p-jp').first()).toContainText('明日');
+  await expect(page.locator('.p-en')).toContainText("Let's go together tomorrow.");
+  await page.locator('.p-jp').first().locator('.unit.word', { hasText: '一緒' }).click();
+  await expect(page.locator('.popup, [role=dialog]').first()).toBeVisible();
+  await shot(page, 'player-overlap');
+});
+
+test('behaviour: clicking a second word keeps "resume on close" (review fix)', async ({ page }) => {
+  await openPlayer(page, '', 13.0);
+  await page.evaluate(() => (window as any).__kp.setPaused(false)); // playing
+  const words = page.locator('.p-jp .unit.word');
+  await words.nth(0).click(); // pauses, remembers it was playing
+  await words.nth(2).click(); // another word while paused by the popup
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => (window as any).__kp.isPaused())).toBe(false);
+});
+
+test('behaviour: held Space does not flicker play/pause (review fix)', async ({ page }) => {
+  await openPlayer(page, '', 13.0);
+  const before = await page.evaluate(() => (window as any).__kp.isPaused());
+  await page.evaluate(() => {
+    for (let i = 0; i < 5; i++) window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', repeat: true, bubbles: true }));
+  });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => (window as any).__kp.isPaused())).toBe(before);
+});
+
+test('behaviour: typing in Settings works while a word popup is open (review fix)', async ({ page }) => {
+  await openPlayer(page, '', 13.0);
+  await page.locator('.p-jp .unit.word').first().click();
+  await page.keyboard.press('Control+Comma');
+  await expect(page.locator('.s-panel')).toBeVisible();
+  const key = page.locator('.s-panel input[type="password"]').first();
+  await key.click();
+  await page.keyboard.type('rr');
+  await expect(key).toHaveValue('rr');
+});
+
+test('behaviour: Tab cannot leave the mining preview (review fix)', async ({ page }) => {
+  await openPlayer(page, '', 1.5);
+  await page.locator('.p-jp .unit.word', { hasText: '諦めない' }).click();
+  await page.getByRole('button', { name: /Add to Anki/ }).click();
+  await expect(page.locator('.m-modal')).toBeVisible();
+  for (let i = 0; i < 25; i++) await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.m-modal'))).toBe(true);
+});
+
 test('player-hover-word', async ({ page }) => {
   await openPlayer(page);
   await page.locator('.unit.word', { hasText: '知らなかった' }).hover();

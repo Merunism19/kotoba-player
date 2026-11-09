@@ -12,6 +12,7 @@ import { useApp, type MiningState } from '../../app/store';
 import { closeMining, markMined, toastAdded } from './mining';
 import { toast } from './session';
 import { IconAlert, IconClose, IconPlus } from './icons';
+import { useFocusTrap } from '../../lib/focus';
 import './mining.css';
 
 const REDRAFT_MS = 300;
@@ -93,6 +94,9 @@ function Modal({ m }: { m: MiningState }) {
   const [pending, setPending] = useState(false);
   const [sending, setSending] = useState(false);
   const seq = useRef(0);
+  // Tab stays inside the preview (the player behind it must not get focus); focus returns on close.
+  const modal = useRef<HTMLDivElement>(null);
+  useFocusTrap(modal, true);
   const sendRef = useRef<() => void>(() => {});
 
   // Sense checkboxes re-draft the card (debounced); the typed translation is kept.
@@ -172,7 +176,7 @@ function Modal({ m }: { m: MiningState }) {
 
   return (
     <div className="m-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeMining()}>
-      <div className="m-modal" role="dialog" aria-modal="true" aria-label="Mining preview">
+      <div ref={modal} className="m-modal" role="dialog" aria-modal="true" aria-label="Mining preview">
         <header className="m-head">
           <div className="m-title">
             <h2>Add to Anki</h2>

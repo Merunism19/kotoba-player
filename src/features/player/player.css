@@ -45,6 +45,9 @@
   /* Soft dark outline keeps white text readable on bright frames. */
   -webkit-text-stroke: 0.09em rgba(10, 10, 20, 0.6); paint-order: stroke fill;
 }
+/* Overlapping speakers: each line on its own row, earlier line on top. */
+.p-jp-lines { display: flex; flex-direction: column; align-items: center; gap: 0.1em; }
+.p-jp-lines .p-jp + .p-jp { margin-top: -0.15em; }
 .unit { white-space: pre-wrap; }
 .p-mined-dot {
   position: absolute; left: calc(100% + 2px); top: 50%; width: 0.2em; height: 0.2em; min-width: 8px; min-height: 8px; margin-top: -0.1em; border-radius: 50%;
