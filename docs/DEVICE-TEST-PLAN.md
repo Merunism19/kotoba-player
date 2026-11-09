@@ -3,7 +3,7 @@
 One ordered list of checks that need the owner's machine. Every PR adds its checks here.
 
 ## Before Phase 3
-- [ ] Install AnkiConnect in Anki (Tools → Add-ons → Get Add-ons → code `2055492159`), restart Anki.
+- [x] Install AnkiConnect in Anki (code `2055492159`) — done 2026-11-08 by the agent with the owner's OK.
 - [ ] Install a Japanese speech voice: Windows Settings → Time & language → Speech → Add voices → Japanese.
 
 ## v0.1.1 (Phase 0 spike) — optional, already checked by the probe on this PC
@@ -22,7 +22,7 @@ One ordered list of checks that need the owner's machine. Every PR adds its chec
 - [ ] Optional: install and start VOICEVOX — 🔊 then uses it (credit shown in the tooltip).
 
 ## v0.4.0 (Phase 3 Anki mining)
-- [ ] Anki open with AnkiConnect: click a word → Add to Anki → the preview matches what lands in Anki (desktop, dark + light).
+- [x] Anki open with AnkiConnect: click a word → Add to Anki → the preview matches what lands in Anki (desktop dark checked 2026-11-08; light + phone still to check).
 - [ ] The card plays the line's audio; the screenshot is the right frame; hover shows readings; on the phone a tap does.
 - [ ] Adding the same word again shows "Already in Anki"; Shift+click adds without the preview.
 
