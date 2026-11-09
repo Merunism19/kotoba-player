@@ -106,7 +106,14 @@ if (!mergedAlready) {
   }
   version = v.pkg;
   if (mainVer && cmp(version, mainVer) < 0) refuse(`version ${version} is below main's ${mainVer}`);
-  const needsBump = BUMP !== 'none' && (!mainVer || cmp(version, mainVer) === 0);
+  // Resumable without double-bumping, and correct for stacked branches: a version already above main
+  // counts as "this branch's bump" only if this branch recorded it (a stacked branch inherits its
+  // parent's bump and still needs its own).
+  const bumpLog = P('.ship/bumps.json');
+  let bumps = {};
+  try { bumps = JSON.parse(readFileSync(bumpLog, 'utf8')); } catch { /* first ship on this machine */ }
+  const bumpedHere = bumps[branch] === version;
+  const needsBump = BUMP !== 'none' && (!mainVer || cmp(version, mainVer) === 0 || !bumpedHere);
   if (needsBump) {
     const [a, b, c] = semver(version);
     version = BUMP === 'minor' ? `${a}.${b + 1}.0` : `${a}.${b}.${c + 1}`;
@@ -114,6 +121,7 @@ if (!mergedAlready) {
     else {
       writeVersions(version);
       must(mut('cargo', ['update', '--workspace', '--offline']), 'cargo update --workspace failed (Cargo.lock must follow the new version)');
+      writeFileSync(bumpLog, JSON.stringify({ ...bumps, [branch]: version }, null, 2));
     }
   } else if (mainVer && cmp(version, mainVer) === 0) refuse(`--bump none but version ${version} equals main's`);
   else say(`  version ${version} already ahead of main (${mainVer ?? 'n/a'})`);
@@ -122,7 +130,9 @@ if (!mergedAlready) {
   step('memory check');
   const handoff = existsSync(P('docs/HANDOFF.md')) ? readFileSync(P('docs/HANDOFF.md'), 'utf8') : '';
   const sec = handoff.split(/^## /m).find((s) => s.startsWith('Current state')) ?? '';
-  if (!sec.includes(`v${version}`)) refuse(`docs/HANDOFF.md "## Current state" must mention v${version}`);
+  // The section must START with the version being shipped (a mention like "on top of v0.2.0" doesn't count).
+  const firstLine = sec.split(/\r?\n/).slice(1).find((l) => l.trim() !== '') ?? '';
+  if (!firstLine.trim().startsWith(`v${version}`)) refuse(`docs/HANDOFF.md "## Current state" must start with v${version} (found: "${firstLine.trim().slice(0, 40)}")`);
   else say(`  HANDOFF names v${version}`);
 
   // ---- codemap

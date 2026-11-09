@@ -1,4 +1,4 @@
-//! Tauri commands behind src/lib/backend.ts: prepare a file, cues, alignment, tokenizing, per-file state, recents.
+//! Tauri commands behind src/lib/backend.ts: prepare a file, cues, alignment, tokenizing, dictionary lookup, word audio, per-file state, recents.
 
 use crate::library::{self, Library};
 use crate::media::{self, Tools, Track};
@@ -20,6 +20,9 @@ pub struct Core {
     /// Parsed subtitle tracks, by (file, track id).
     parsed: Mutex<HashMap<(String, u32), Arc<subtitles::Track>>>,
     tokenizer: OnceLock<Result<jptext::Tokenizer, String>>,
+    /// Folders searched for bundled data (ffmpeg, `dict/jmdict.sqlite`).
+    lib_dirs: Vec<PathBuf>,
+    dict: OnceLock<Result<jpdict::Dict, String>>,
 }
 
 impl Core {
@@ -34,7 +37,27 @@ impl Core {
             sub_files: Mutex::new(HashMap::new()),
             parsed: Mutex::new(HashMap::new()),
             tokenizer: OnceLock::new(),
+            lib_dirs: tool_dirs.to_vec(),
+            dict: OnceLock::new(),
         }
+    }
+
+    /// The dictionary database, opened on first use from `<lib>/dict/jmdict.sqlite`.
+    pub fn dict(&self) -> Result<&jpdict::Dict, String> {
+        self.dict
+            .get_or_init(|| {
+                let path = self
+                    .lib_dirs
+                    .iter()
+                    .map(|d| d.join("dict").join("jmdict.sqlite"))
+                    .find(|p| p.is_file())
+                    .ok_or_else(|| {
+                        "The dictionary is missing (run: node scripts/fetch-deps.mjs).".to_string()
+                    })?;
+                jpdict::Dict::open(&path).map_err(|e| format!("Dictionary failed to open: {e}"))
+            })
+            .as_ref()
+            .map_err(Clone::clone)
     }
 
     fn tools(&self) -> Result<&Tools, String> {
@@ -303,6 +326,46 @@ pub async fn tokenize(
     tauri::async_runtime::spawn_blocking(move || core.tokenizer().map(|t| t.word_units(&text)))
         .await
         .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Dictionary lookup at code-point `offset` of a subtitle line (longest match first).
+#[tauri::command]
+pub async fn lookup_at(
+    core: tauri::State<'_, Arc<Core>>,
+    text: String,
+    offset: usize,
+) -> Result<Vec<jpdict::LookupResult>, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || core.dict().map(|d| d.lookup_at(&text, offset)))
+        .await
+        .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// The first known downstep for `term` read as `reading`, from the dictionary.
+fn downstep_of(core: &Core, term: &str, reading: &str) -> Option<usize> {
+    let dict = core.dict().ok()?;
+    dict.lookup_at(term, 0)
+        .into_iter()
+        .filter(|r| r.len == term.chars().count())
+        .flat_map(|r| r.entries)
+        .find(|e| e.term == term && e.reading == reading)
+        .and_then(|e| e.pitch.first().map(|p| p.downstep as usize))
+}
+
+/// Pronunciation of a word (VOICEVOX with its pitch accent, else a Japanese Windows voice), or null.
+#[tauri::command]
+pub async fn word_audio(
+    core: tauri::State<'_, Arc<Core>>,
+    term: String,
+    reading: String,
+) -> Result<Option<crate::audio::WordAudio>, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let downstep = downstep_of(&core, &term, &reading);
+        crate::audio::word_audio(&core.cache_dir, &reading, downstep)
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
 }
 
 /// Present-but-null vs absent: `Some(None)` clears, `None` leaves unchanged.

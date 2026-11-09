@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["src-tauri", "crates/subtitles", "crates/jptext"]
+members = ["src-tauri", "crates/subtitles", "crates/jptext", "crates/jpdict"]
 
 [profile.release]
 codegen-units = 1

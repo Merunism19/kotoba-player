@@ -89,6 +89,69 @@ export interface RecentItem {
   thumbUrl?: string;
 }
 
+/** Pitch accent of one reading (Tokyo dialect, from Kanjium). */
+export interface Pitch {
+  /** Mora after which the pitch drops; 0 = no drop (heiban). */
+  downstep: number;
+  pattern: 'heiban' | 'atamadaka' | 'nakadaka' | 'odaka';
+  /** The reading split into morae (きゃ, っ, ー count as their own mora where they are one). */
+  morae: string[];
+}
+
+/** One meaning of an entry. */
+export interface Sense {
+  glosses: string[];
+  /** Part-of-speech labels in plain English, e.g. "Ichidan verb", "transitive", "noun". */
+  pos: string[];
+  /** Usage notes: "usually written using kana alone", "slang", "colloquial"… */
+  notes: string[];
+}
+
+/** A dictionary entry as shown in the popup (one written form + reading). */
+export interface DictEntry {
+  /** JMdict sequence number. */
+  id: number;
+  /** Headword as written (kanji form, or kana when the word has none / is usually kana). */
+  term: string;
+  /** Reading in kana (hiragana; katakana kept for katakana words). */
+  reading: string;
+  /** Furigana segments, e.g. 諦める → [{text:'諦', ruby:'あきら'}, {text:'める'}]. */
+  furigana: { text: string; ruby?: string }[];
+  senses: Sense[];
+  /** One entry per known accent (some words have two). Empty when unknown. */
+  pitch: Pitch[];
+  /** JMdict "common" (news1/ichi1/spec1/gai1 priority). */
+  common: boolean;
+  /** Approximate frequency rank (1 = most frequent) from JMdict's nfXX tags; absent when unknown. */
+  freqRank?: number;
+  /** Other written forms, e.g. あきらめる for 諦める. */
+  otherForms: string[];
+}
+
+/** Result of looking up the text at a position; several per click (longest match first). */
+export interface LookupResult {
+  /** Offset (code points) and length of the matched text in the line. */
+  start: number;
+  len: number;
+  /** The text as it appeared, e.g. 諦めない. */
+  matched: string;
+  /** Dictionary form it was reduced to, when it was conjugated, e.g. 諦める. */
+  deinflected?: string;
+  /** Conjugation steps, outermost last, in plain words: ["negative"], ["causative", "passive", "negative", "past"]. */
+  inflections: string[];
+  /** Matching entries, best first (exact reading/term match, common, frequency). */
+  entries: DictEntry[];
+}
+
+/** Pronunciation audio for a word. */
+export interface WordAudio {
+  /** Playable URL (data: URL with WAV/MP3). */
+  url: string;
+  /** Where it came from, for the tooltip/credit ("VOICEVOX: 四国めたん" must be credited). */
+  source: 'voicevox' | 'windows' | 'pack';
+  credit?: string;
+}
+
 export interface Backend {
   /** Probe the file, find tracks (incl. external subs next to it), restore per-file state. */
   prepareMedia(path: string): Promise<PreparedMedia>;
@@ -106,6 +169,10 @@ export interface Backend {
   recentFiles(): Promise<RecentItem[]>;
   /** Paths passed on the command line ("Open with" from Explorer). */
   startupFiles(): Promise<string[]>;
+  /** Dictionary lookup at code-point `offset` of `text` (a subtitle line): longest match first. Empty when nothing matches. */
+  lookupAt(text: string, offset: number): Promise<LookupResult[]>;
+  /** Pronunciation of a word, or null when no source is available (no VOICEVOX running, no Japanese Windows voice). */
+  wordAudio(term: string, reading: string): Promise<WordAudio | null>;
 }
 
 const tauriBackend: Backend = {
@@ -117,6 +184,8 @@ const tauriBackend: Backend = {
   savePosition: (path, positionMs, durationMs) => invoke('save_position', { path, positionMs, durationMs }),
   recentFiles: () => invoke('recent_files'),
   startupFiles: () => invoke('startup_files'),
+  lookupAt: (text, offset) => invoke('lookup_at', { text, offset }),
+  wordAudio: (term, reading) => invoke('word_audio', { term, reading }),
 };
 
 let current: Backend = tauriBackend;

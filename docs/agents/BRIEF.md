@@ -19,6 +19,9 @@ Your brief says **what** to build. This file says **how**. Follow both.
   All files UTF-8, LF line endings.
 - Design: use tokens from `src/design/tokens.css`; match `docs/design/mockup.html`. Pretty is a requirement.
 - Don't commit, push, switch branches or touch git config.
+- Whatever narrower checks your brief lists, ALSO run every guard after your last edit:
+  `for g in scripts/guards/*.mjs; do node $g || echo FAIL $g; done` (a brief once listed only two of
+  five guards and the merge failed on a third).
 - Run the verify command **after your last edit**: `node scripts/ci.mjs --quick`
   (or the narrower command your brief names). If you edit after verifying, verify again.
 - Stop every background process (dev servers, watchers) and wait for background commands before replying.

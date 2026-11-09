@@ -6,8 +6,8 @@
   --glass: rgba(18, 20, 28, 0.72);
   --glass-blur: blur(24px) saturate(140%);
   /* Tinted glass over the video surface (backdrop-filter cannot see mpv's surface, so no blur). */
-  --glass-video: rgba(14, 16, 22, 0.82);
-  --glass-video-strong: rgba(14, 16, 22, 0.9);
+  --glass-video: rgba(14, 16, 22, 0.86);
+  --glass-video-strong: rgba(14, 16, 22, 0.96); /* 0.9 let saturated video bleed through on the real mpv surface */
   --hairline: rgba(255, 255, 255, 0.08);
   --hairline-2: rgba(255, 255, 255, 0.14);
   --hover: rgba(255, 255, 255, 0.08);
