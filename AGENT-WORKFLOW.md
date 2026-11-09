@@ -48,7 +48,8 @@ section 12 and leaves the file better than it found it. Version and history are 
    speed-up proven on the build machine can be worth nothing there (or break it); time each candidate
    on the device before building on it, and repeat runs back to back because devices are noisy.
 3. **Branch** from the main branch (or stack on an unmerged branch only when the work depends on
-   it; keep stacks short — three is the most worth carrying).
+   it; keep stacks short — three is the most worth carrying). Merge a stack bottom-up with merge commits,
+   not squash: a squashed parent leaves the next branch's copies of the same commits to conflict.
 4. **Brief** one helper (section 4). One writer per checkout at a time; to run helpers in parallel
    (or alongside your own edits), give each its own git worktree and bring its files over after review.
    A new worktree may be cut from the default branch, not your working branch: commit what the helper
