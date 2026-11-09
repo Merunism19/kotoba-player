@@ -56,6 +56,8 @@ Repo: `Merunism19/kotoba-player` (private GitHub).
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
+v1.0.4 — own app icon (speech bubble with 言; replaces Tauri's default; also the home-screen logo) and the
+installer always puts a desktop shortcut (owner request). Icon pipeline: DESIGN §5, WORKFLOW "App icon".
 v1.0.3 — long-session fixes after a 24-min episode stress test (`node scripts/make-episode.mjs`, `scripts/dev/stress.mjs`)
 and a UI/state review: overlapping speakers now both shown (the released v1.0.0 showed only one in 2 of 25 random
 seeks; 0 after the fix), popup "resume" kept across a second word click, stale hover-pause cleared, typing in fields

@@ -405,3 +405,8 @@ Changelog (newest last; each line: what changed — evidence):
   and shape found what three code reviews and 60+ UI tests missed: a 24-minute fansub-style file (overlapping speakers,
   karaoke OP, signs) showed only one of two simultaneous lines in 2 of 25 random seeks on the released build. Build the
   realistic stress input early (size, overlaps, edge styling), drive the real app over it, and keep the driver.
+- 2026-11-08: Brand assets as code. Keep an app icon as an HTML/SVG source plus a render script, not a one-off PNG,
+  and check it at the sizes the OS really shows (16–256 px, dark and light). A concept that looks fine at 256 px
+  (a play triangle) can read as generic; a cut-out glyph still reads at 16 px if the outer shape carries it. To change
+  a bundler's generated installer, read its generated script after one build (Tauri:
+  `target/release/nsis/x64/installer.nsi`) and hook its own functions rather than replacing the template.

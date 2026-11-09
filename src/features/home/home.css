@@ -10,9 +10,10 @@
 }
 .home-inner { width: min(960px, 100%); display: grid; gap: 26px; }
 .hero { display: grid; justify-items: center; text-align: center; gap: 2px; }
+/* The app icon; its own dark square has a 4% margin, so no extra rounding is needed. */
 .logo {
-  margin-bottom: 8px; font: 700 54px/1.1 var(--font-head); letter-spacing: 0.06em; color: var(--accent);
-  text-shadow: 0 10px 40px rgb(var(--accent-rgb) / 0.35);
+  display: block; width: 88px; height: 88px; margin-bottom: 10px; user-select: none;
+  filter: drop-shadow(0 12px 30px rgb(var(--accent-rgb) / 0.28));
 }
 .hero h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
 .tag { margin: 2px 0 0; color: var(--text-2); font-size: 15px; }
@@ -75,4 +76,4 @@
 .left { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .empty { margin: 0; text-align: center; color: var(--text-3); font-size: 13px; }
-@media (max-height: 640px) { .home-inner { gap: 16px; } .logo { font-size: 40px; } }
+@media (max-height: 640px) { .home-inner { gap: 16px; } .logo { width: 64px; height: 64px; } }

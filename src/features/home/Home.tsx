@@ -5,6 +5,7 @@ import { useApp } from '../../app/store';
 import { openDialog, openFile } from '../player/session';
 import { IconClock, IconGear, IconPlay, IconUpload } from '../player/icons';
 import { openSettings } from '../settings/settings';
+import logo from '../../assets/logo.png'; // the app icon (scripts/icon/make-icon.mjs)
 import './home.css';
 
 function RecentCard({ item, index }: { item: RecentItem; index: number }) {
@@ -35,7 +36,7 @@ export default function Home() {
       <button className="p-iconbtn home-gear" aria-label="Settings (Ctrl+,)" title="Settings (Ctrl+,)" onClick={openSettings}><IconGear /></button>
       <div className="home-inner">
         <header className="hero">
-          <div className="logo" aria-hidden="true">言葉</div>
+          <img className="logo" src={logo} alt="" width={88} height={88} draggable={false} />
           <h1>Kotoba Player</h1>
           <p className="tag">Watch anime. Click any word. Keep it in Anki.</p>
         </header>
