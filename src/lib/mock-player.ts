@@ -14,7 +14,8 @@ export interface MockHooks {
 export function installMockPlayer(): MockHooks {
   const handlers = new Set<PlayerHandlers>();
   let time = 0;
-  let paused = true;
+  // ?mpvplaying=1: start unpaused, as the real mpv does (its first pause event can be missed).
+  let paused = !new URLSearchParams(location.search).has('mpvplaying');
   const emit = (name: Parameters<PlayerHandlers['onProp']>[0]['name'], value: number | boolean) =>
     handlers.forEach((h) => h.onProp({ name, value }));
 
@@ -43,6 +44,8 @@ export function installMockPlayer(): MockHooks {
       emit('pause', true);
     },
     async setPause(p) {
+      // Like mpv: an event only when the value changes.
+      if (paused === p) return;
       paused = p;
       emit('pause', p);
     },

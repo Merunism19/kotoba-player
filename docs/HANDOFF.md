@@ -60,6 +60,13 @@ public repo starts with no PRs and only the v1.0.4 release.
 - Dictionary data is CC BY-SA 4.0 (JMdict/EDRDG, Kanjium): attribution required.
 
 ## Current state
+v1.1.1 — fixes from the owner's first real episode (a Netflix WEB-DL, 23 min, built-in English/Chinese/… subs, no
+Japanese): (1) the Play button showed "Play" while the video played and did nothing — mpv reports `pause` only on
+change and its first report could come before the listener; the player now reads pause/volume/speed once at start
+and `openFile` sets `pause: false` itself. (2) "Sync to voices" kept the manual delay (Z/X offset) on top, so the
+lines stayed off; a sync to the voices now clears it (counted in "moved … s", Undo restores it). On that episode
+the voice sync measured its built-in English/Chinese tracks 0.04 s off (all lines one shift) in 1.5 s — the first
+check on real anime audio.
 v1.1.0 — sync to the voices (owner: "Japanese syncs to the audio … 10 ms", "English follows Japanese"). Japanese
 subtitle FILES are synced to the voices automatically once per file (setting, default on; Undo sticks), any track
 by hand ("Sync to voices" in the track menu); the English then follows the synced Japanese. Lines start 100 ms

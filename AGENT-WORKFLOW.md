@@ -422,3 +422,8 @@ Changelog (newest last; each line: what changed — evidence):
   local music floor), and (2) a coarse aligner leaves a constant ~0.15 s bias (fix: a fine step that measures
   onsets to 1 ms and corrects each part by the median). Without the truth file both would have shipped unseen.
   Also: write multi-line inline Python edits to a scratch .py file; bash heredocs choked on them twice.
+- 2026-11-10: Test with state that came from somewhere else, not only a fresh start — the owner's first real
+  episode found two bugs every sample test missed: a UI flag that follows "changed" events stayed wrong when the
+  first event came before the listener (the fake player always sent events, so tests never saw it; make fakes
+  behave like the real engine: events only on change), and a new feature (sync) ignored an older one (the manual
+  offset) that changes the same thing. When adding a feature, list the existing features that touch the same state.

@@ -89,6 +89,9 @@ export async function openFile(path: string): Promise<void> {
     wake();
     await player.loadFile(path, { startSec: (media.resumeMs ?? 0) / 1000, signsAssPath: media.signsAssPath });
     await player.setPause(false);
+    // mpv sends no event when pause was already off (e.g. after going home, which only stops), so
+    // set the state we just applied — otherwise the Play button showed "paused" and did nothing.
+    set({ pause: false, hoverPaused: false });
     void autoSyncToAudio(media);
   } catch (e) {
     if (token !== openToken) return;
@@ -409,11 +412,26 @@ function audioTrackId(media: PreparedMedia): number | undefined {
 }
 
 /** After a sync: show the new timing (and mpv the moved signs), and say what happened, with Undo (of `undo`'s tracks). */
-async function afterSync(media: PreparedMedia, undo: number[], summary: SyncSummary, to: string): Promise<void> {
+async function afterSync(media: PreparedMedia, undo: number[], summary: SyncSummary, to: string, toVoices = false): Promise<void> {
+  // Synced to the voices, the lines now start with them: a manual delay (offset) left on top put them
+  // off again (owner's report 2026-11-10), so it is cleared, and the message counts it in what moved.
+  const offset = get().offsetMs;
+  const cleared = toVoices && offset !== 0;
+  if (cleared) setOffset(0);
   await reloadCues(media);
   if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
-  const moved = summary.changed || summary.followChanged;
-  toast(describeSync(summary, to), 'ok', moved ? { label: 'Undo', run: () => void undoSync(media.path, undo) } : undefined);
+  const shown: SyncSummary = cleared
+    ? {
+        ...summary,
+        medianShiftMs: summary.medianShiftMs - offset,
+        minShiftMs: summary.minShiftMs - offset,
+        maxShiftMs: summary.maxShiftMs - offset,
+        changed: summary.changed || get().jpCues.length || 1,
+      }
+    : summary;
+  const moved = shown.changed || shown.followChanged;
+  const undoIt = () => void undoSync(media.path, undo, cleared ? offset : undefined);
+  toast(describeSync(shown, to), 'ok', moved ? { label: 'Undo', run: undoIt } : undefined);
 }
 
 /** The tracks a sync changed, for its Undo. */
@@ -430,7 +448,7 @@ export async function syncToAudio(): Promise<void> {
     const en = media.enSubId ?? undefined;
     const summary = await backend.syncToAudio(media.path, jp, audioTrackId(media), en);
     if (get().media?.path !== media.path) return;
-    await afterSync(media, changedTracks(summary, jp, en), summary, 'voices');
+    await afterSync(media, changedTracks(summary, jp, en), summary, 'voices', true);
   } catch (e) {
     toast(`Could not sync: ${errMsg(e)}`);
   } finally {
@@ -456,7 +474,7 @@ async function autoSyncToAudio(media: PreparedMedia): Promise<void> {
     const summary = await backend.autoSyncToAudio(media.path, jpFile ? jp : undefined, audioTrackId(media), en, jp);
     const now = get().media;
     if (!summary || !(summary.changed || summary.followChanged) || now?.path !== media.path || now.jpSubId !== media.jpSubId) return;
-    await afterSync(now, changedTracks(summary, jp, en), summary, 'voices');
+    await afterSync(now, changedTracks(summary, jp, en), summary, 'voices', true);
   } catch (e) {
     console.warn('auto sync to audio failed', e); // e.g. no audio track: the manual buttons still work
   } finally {
@@ -464,11 +482,13 @@ async function autoSyncToAudio(media: PreparedMedia): Promise<void> {
   }
 }
 
-async function undoSync(path: string, tracks: number[]): Promise<void> {
+/** Undo a sync: the tracks' original timing, and the manual delay it cleared (`offsetMs`). */
+async function undoSync(path: string, tracks: number[], offsetMs?: number): Promise<void> {
   const media = get().media;
   if (!media || media.path !== path) return;
   try {
     for (const id of tracks) await backend.resetSync(path, id);
+    if (offsetMs != null) setOffset(offsetMs);
     await reloadCues(media);
     if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
     toast('Sync undone', 'info');

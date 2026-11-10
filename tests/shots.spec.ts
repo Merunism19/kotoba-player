@@ -689,6 +689,29 @@ test('behaviour: embedded subtitles are not auto-synced; the setting turns it of
   expect((await mockLog(page)).audioSyncs).toEqual([{ subId: 3, audioId: 1, enSubId: 2, auto: false }]);
 });
 
+test('behaviour: Sync to voices clears a manual delay (and Undo brings it back)', async ({ page }) => {
+  // Owner's report 2026-11-10: delayed on purpose, synced, "it stayed that way" — the offset was kept on top.
+  await openPlayer(page, '');
+  await page.evaluate(() => (window as any).__kp.setOffset(10_000));
+  await expect(page.locator('.p-chip.sync')).toContainText('+10');
+  await page.getByRole('button', { name: /JP \+ EN/ }).click();
+  await page.getByRole('button', { name: 'Sync to voices' }).click();
+  await expect(page.locator('.toast', { hasText: 'Synced to the voices: moved 10.00 s earlier' })).toBeVisible();
+  await expect(page.locator('.p-chip.sync')).toHaveCount(0);
+  await page.locator('.toast-action', { hasText: 'Undo' }).click();
+  await expect(page.locator('.toast', { hasText: 'Sync undone' })).toBeVisible();
+  await expect(page.locator('.p-chip.sync')).toContainText('+10');
+});
+
+test('behaviour: Play/Pause follows the video even when mpv sends no pause event', async ({ page }) => {
+  // Owner's report 2026-11-10: the video played while the button showed Play, and clicking it did nothing.
+  await page.goto('/?mock=1&open=1&mpvplaying=1');
+  await expect(page.locator('.p-top')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause (Space)' })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause (Space)' }).click();
+  await expect(page.getByRole('button', { name: 'Play (Space)' })).toBeVisible();
+});
+
 test('behaviour: a dropped Japanese subtitle file syncs to the voices', async ({ page }) => {
   await openPlayer(page, '&unsynced=1');
   await page.evaluate(() => (window as any).__kp.handleDrop(['C:/Subs/other-release.ja.srt']));

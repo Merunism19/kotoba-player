@@ -102,6 +102,13 @@ function createMpvPlayer(): PlayerApi {
         if (data == null) return;
         for (const h of handlers) h.onProp({ name, value: data });
       });
+      // mpv reports a property only when it changes, and its first report can arrive before the
+      // listener above exists: read the current values once, or the UI kept "paused" while the video
+      // played and the Play button did nothing (owner's report 2026-11-10).
+      for (const [name, format] of [['pause', 'flag'], ['volume', 'double'], ['speed', 'double']] as const) {
+        const value = await getProperty(name, format).catch(() => null);
+        if (value != null) for (const h of handlers) h.onProp({ name, value });
+      }
       await listenEvents((e) => {
         if (e.event === 'file-loaded' && pending) {
           const p = pending;
