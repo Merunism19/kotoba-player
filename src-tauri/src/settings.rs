@@ -29,6 +29,8 @@ pub struct Settings {
     pub offset_step_ms: u32,
     /// Accent colour preset: "sakura", "twilight", "matcha", "sunset".
     pub accent: String,
+    /// Sync subtitle files (next to the video or dropped in) to the voices automatically, once per file.
+    pub auto_sync_audio: bool,
 }
 
 impl Default for Settings {
@@ -44,6 +46,7 @@ impl Default for Settings {
             sub_scale: 1.0,
             offset_step_ms: 100,
             accent: "sakura".into(),
+            auto_sync_audio: true,
         }
     }
 }

@@ -24,6 +24,8 @@ pub struct FileState {
     pub extra_subs: Vec<String>,
     /// Auto-sync result per subtitle track id: one shift (ms) per cue, in cue order.
     pub retimed: BTreeMap<u32, Vec<i64>>,
+    /// Subtitle tracks the automatic audio sync already ran on (it runs once per track, so an Undo sticks).
+    pub audio_checked: Vec<u32>,
 }
 
 /// The whole library store (see `stores::Store::Library`).

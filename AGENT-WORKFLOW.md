@@ -415,3 +415,10 @@ Changelog (newest last; each line: what changed — evidence):
   place does NOT remove an email from a repo that has PRs. Only a fresh repo with the rewritten history does. Keep the
   old one renamed and private, compare tree hashes old vs new for every tag, and set the checkout's `user.email`
   to the no-reply address so the leak doesn't come back.
+- 2026-11-09: Precision needs a measured truth, not a bigger model. For "sync subtitles to the voices within
+  10 ms", generate test audio with REAL speech at known times (OS text-to-speech) under music and with the
+  failure modes real files have (offset, ad-break split, lyric/sign lines, missing lines); print signed error per
+  case. That showed (1) the off-the-shelf voice detector calls music "voice" (fix: also require energy above the
+  local music floor), and (2) a coarse aligner leaves a constant ~0.15 s bias (fix: a fine step that measures
+  onsets to 1 ms and corrects each part by the median). Without the truth file both would have shipped unseen.
+  Also: write multi-line inline Python edits to a scratch .py file; bash heredocs choked on them twice.

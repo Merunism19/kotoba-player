@@ -1051,6 +1051,35 @@ pub async fn add_subtitle_file(
         .map_err(|e| format!("internal error: {e}"))?
 }
 
+/// Retime track `sub_id` with shifts computed from its unsynced cues, remember them per file and
+/// rewrite its signs. Starts from the file's own timing, so syncing twice doesn't stack shifts.
+fn retime(
+    core: &Core,
+    path: &str,
+    sub_id: u32,
+    shifts_for: impl FnOnce(&subtitles::Track) -> Result<Vec<i64>, String>,
+) -> Result<crate::sync::SyncSummary, String> {
+    {
+        let mut lib = lock(&core.library);
+        lib.entry(path).retimed.remove(&sub_id);
+    }
+    lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    let list = core.track(path, sub_id)?;
+    let shifts = shifts_for(&list)?;
+    let summary = crate::sync::summarize(&shifts);
+    {
+        let mut lib = lock(&core.library);
+        if summary.changed > 0 {
+            lib.entry(path).retimed.insert(sub_id, shifts);
+        }
+        core.save_library(&lib);
+    }
+    lock(&core.parsed).remove(&(path.to_string(), sub_id));
+    // Signs of this track move with it (the UI then asks mpv to reload the file it shows).
+    let _ = write_signs(core, path, sub_id);
+    Ok(summary)
+}
+
 fn sync(
     core: &Core,
     path: &str,
@@ -1060,25 +1089,144 @@ fn sync(
     if sub_id == ref_sub_id {
         return Err("Pick a different track as the timing reference.".into());
     }
-    // Start from the unsynced file, so syncing twice doesn't stack shifts.
-    {
-        let mut lib = lock(&core.library);
-        lib.entry(path).retimed.remove(&sub_id);
-    }
-    lock(&core.parsed).remove(&(path.to_string(), sub_id));
-    let list = core.track(path, sub_id)?;
     let reference = core.track(path, ref_sub_id)?;
-    let shifts = crate::sync::deltas(&reference.cues, &list.cues);
-    let summary = crate::sync::summarize(&shifts);
-    {
-        let mut lib = lock(&core.library);
-        lib.entry(path).retimed.insert(sub_id, shifts);
-        core.save_library(&lib);
+    retime(core, path, sub_id, |list| {
+        Ok(crate::sync::deltas(&reference.cues, &list.cues))
+    })
+}
+
+/// Where people speak in audio stream `audio_index` (0-based) of `path`, as (start, end) ms.
+fn speech_in(core: &Core, path: &str, audio_index: u32) -> Result<crate::sync::Speech, String> {
+    let tools = core.tools()?;
+    let scratch = core.cache_dir.join("sync").join(format!(
+        "{}-{}-{}.pcm",
+        media::file_key(Path::new(path)),
+        std::process::id(),
+        library::now_ms()
+    ));
+    let pcm = media::audio_pcm(
+        tools,
+        Path::new(path),
+        audio_index,
+        crate::sync::VAD_RATE,
+        &scratch,
+    )
+    .map_err(|e| format!("Couldn't read the audio: {e}"))?;
+    let speech = crate::sync::detect_speech(&pcm);
+    if speech.spans.len() < 3 {
+        return Err("Couldn't hear enough speech in this audio track to sync to.".into());
     }
-    lock(&core.parsed).remove(&(path.to_string(), sub_id));
-    // Signs of this track move with it (the UI then asks mpv to reload the file it shows).
-    let _ = write_signs(core, path, sub_id);
+    Ok(speech)
+}
+
+/// Retime the English track `en_id` to follow the (synced) Japanese track `jp_id`; the number of
+/// English lines that moved.
+fn follow_japanese(core: &Core, path: &str, en_id: u32, jp_id: u32) -> Result<usize, String> {
+    if en_id == jp_id {
+        return Ok(0);
+    }
+    let jp = core.track(path, jp_id)?;
+    Ok(retime(core, path, en_id, |list| {
+        Ok(crate::sync::deltas_follow(&jp.cues, &list.cues))
+    })?
+    .changed)
+}
+
+/// Sync the Japanese track `sub_id` to the voices, then let the English track `en_id` (if any)
+/// follow it, so each English line sits under its Japanese line.
+fn sync_audio(
+    core: &Core,
+    path: &str,
+    sub_id: u32,
+    audio_id: Option<u32>,
+    en_id: Option<u32>,
+) -> Result<crate::sync::SyncSummary, String> {
+    let speech = speech_in(core, path, audio_id.unwrap_or(1).saturating_sub(1))?;
+    let mut summary = retime(core, path, sub_id, |list| {
+        Ok(crate::sync::deltas_to_speech(&speech, &list.cues))
+    })?;
+    if let Some(en) = en_id {
+        summary.follow_changed = follow_japanese(core, path, en, sub_id)?;
+    }
     Ok(summary)
+}
+
+/// Line a subtitle track up with the voices in the audio (`audio_id`: mpv's 1-based audio track id;
+/// default the first), and the English track `en_sub_id` with it. Remembered per file like
+/// `sync_subtitles`; reload both tracks' cues afterwards.
+#[tauri::command]
+pub async fn sync_to_audio(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: u32,
+    audio_id: Option<u32>,
+    en_sub_id: Option<u32>,
+) -> Result<crate::sync::SyncSummary, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        sync_audio(&core, &path, sub_id, audio_id, en_sub_id)
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
+}
+
+/// Mark track `id` as auto-checked; false when it was already (or was synced by hand), so the
+/// automatic sync runs once per track and an Undo sticks.
+fn first_auto_check(core: &Core, path: &str, id: u32) -> bool {
+    let mut lib = lock(&core.library);
+    let e = lib.entry(path);
+    if e.audio_checked.contains(&id) || e.retimed.contains_key(&id) {
+        return false;
+    }
+    e.audio_checked.push(id);
+    core.save_library(&lib);
+    true
+}
+
+/// Automatic sync, once per track (`None` when there was nothing to do). Called by the UI when a
+/// subtitle FILE is in use (next to the video or dropped in): those often come from another
+/// release. `sub_id` (Japanese) is synced to the voices and the English follows it; with no
+/// Japanese file (`sub_id` None), an English file just follows the embedded Japanese track.
+fn auto_sync_once(
+    core: &Core,
+    path: &str,
+    sub_id: Option<u32>,
+    audio_id: Option<u32>,
+    en_id: Option<u32>,
+    jp_id: Option<u32>,
+) -> Result<Option<crate::sync::SyncSummary>, String> {
+    if let Some(jp) = sub_id {
+        if !first_auto_check(core, path, jp) {
+            return Ok(None);
+        }
+        let en = en_id.filter(|en| first_auto_check(core, path, *en));
+        return sync_audio(core, path, jp, audio_id, en).map(Some);
+    }
+    match (en_id, jp_id) {
+        (Some(en), Some(jp)) if first_auto_check(core, path, en) => {
+            let mut s = crate::sync::summarize(&[]);
+            s.follow_changed = follow_japanese(core, path, en, jp)?;
+            Ok(Some(s))
+        }
+        _ => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub async fn auto_sync_to_audio(
+    core: tauri::State<'_, Arc<Core>>,
+    path: String,
+    sub_id: Option<u32>,
+    audio_id: Option<u32>,
+    en_sub_id: Option<u32>,
+    jp_sub_id: Option<u32>,
+) -> Result<Option<crate::sync::SyncSummary>, String> {
+    let core = core.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        auto_sync_once(&core, &path, sub_id, audio_id, en_sub_id, jp_sub_id)
+    })
+    .await
+    .map_err(|e| format!("internal error: {e}"))?
 }
 
 /// Line a subtitle track up with a reference track (usually the English subtitles of the release);
@@ -1534,6 +1682,71 @@ mod tests {
         assert!(
             add_sub_file(&core, &path, &path).is_err(),
             "a video is not a subtitle file"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// A `.ja.srt` next to the video, 2.7 s late against real speech (`make-speech-sample.mjs`):
+    /// the automatic audio sync runs once, lands the lines on the voices, and an Undo sticks.
+    #[test]
+    fn auto_syncs_a_subtitle_file_to_the_audio_once() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let video = root.join("../samples/speech/const/Ep.mkv");
+        let tools_dir = root.join("lib");
+        if !video.is_file() || Tools::find(std::slice::from_ref(&tools_dir)).is_none() {
+            eprintln!("skipping: samples/speech or bundled tools missing");
+            return;
+        }
+        let tmp = std::env::temp_dir().join(format!("kp-async-{}", std::process::id()));
+        let core = Core::new(&[tools_dir], tmp.join("data"), tmp.join("cache"));
+        let path = video.canonicalize().unwrap().to_string_lossy().into_owned();
+        let p = prepare(&core, &path).unwrap();
+        let jp = p.jp_sub_id.expect("the .ja.srt becomes the Japanese track");
+        let before = core.track(&path, jp).unwrap().cues[0].start_ms;
+
+        let en = p.en_sub_id.expect("the .en.srt becomes the English track");
+        let s = auto_sync_once(&core, &path, Some(jp), None, Some(en), Some(jp))
+            .unwrap()
+            .expect("first open syncs");
+        // The English (1.3 s early, another release) follows: each line under its Japanese line.
+        assert!(s.follow_changed > 0, "{s:?}");
+        let pairs = subtitles::align(
+            &core.track(&path, jp).unwrap().cues,
+            &core.track(&path, en).unwrap().cues,
+        );
+        assert!(pairs.iter().all(|(j, e)| e.as_slice() == [*j]), "{pairs:?}");
+        assert!((s.median_shift_ms + 2_700).abs() <= 15, "{s:?}");
+        let after = core.track(&path, jp).unwrap().cues[0].start_ms;
+        assert!(
+            (after - (before - 2_700)).abs() <= 15,
+            "{before} -> {after}"
+        );
+        // The timing is remembered and survives a re-open; the auto sync doesn't run twice.
+        assert_eq!(prepare(&core, &path).unwrap().jp_sub_id, Some(jp));
+        assert_eq!(core.track(&path, jp).unwrap().cues[0].start_ms, after);
+        assert!(
+            auto_sync_once(&core, &path, Some(jp), None, Some(en), Some(jp))
+                .unwrap()
+                .is_none()
+        );
+        // Undo (reset) sticks: the next auto sync leaves it alone.
+        {
+            let mut lib = lock(&core.library);
+            lib.entry(&path).retimed.remove(&jp);
+        }
+        lock(&core.parsed).clear();
+        assert!(
+            auto_sync_once(&core, &path, Some(jp), None, Some(en), Some(jp))
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(core.track(&path, jp).unwrap().cues[0].start_ms, before);
+        // By hand it always runs.
+        assert!(
+            sync_audio(&core, &path, jp, Some(1), Some(en))
+                .unwrap()
+                .changed
+                > 0
         );
         let _ = std::fs::remove_dir_all(&tmp);
     }

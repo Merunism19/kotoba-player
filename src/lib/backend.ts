@@ -220,6 +220,8 @@ export interface Settings {
   subScale: number;
   /** Z/X step in ms. */
   offsetStepMs: number;
+  /** Sync subtitle files (next to the video or dropped in) to the voices automatically, once per file. */
+  autoSyncAudio: boolean;
   accent: 'sakura' | 'twilight' | 'matcha' | 'sunset';
 }
 
@@ -246,6 +248,8 @@ export interface SyncSummary {
   maxShiftMs: number;
   /** Lines whose timing changed. */
   changed: number;
+  /** English lines moved to follow the synced Japanese (so each sits under its line). */
+  followChanged: number;
 }
 
 /** Result of importing a Yomitan dictionary. */
@@ -298,6 +302,18 @@ export interface Backend {
   addSubtitleFile(path: string, file: string): Promise<PreparedMedia>;
   /** Retime subtitle track `subId` against `refSubId` (e.g. the release's English track); remembered per file. Reload its cues after. */
   syncSubtitles(path: string, subId: number, refSubId: number): Promise<SyncSummary>;
+  /**
+   * Retime Japanese track `subId` to the voices in audio track `audioId` (mpv id; default the first),
+   * lines starting 100 ms before their voice; English track `enSubId` then follows it. Remembered
+   * per file. Reload both tracks' cues after.
+   */
+  syncToAudio(path: string, subId: number, audioId?: number, enSubId?: number): Promise<SyncSummary>;
+  /**
+   * The automatic version, once per track (null: nothing to do, so an Undo sticks). With `subId`
+   * (a Japanese subtitle FILE) it syncs to the voices and the English follows; with only `enSubId`
+   * (an English FILE) the English follows Japanese track `jpSubId`.
+   */
+  autoSyncToAudio(path: string, subId: number | undefined, audioId: number | undefined, enSubId: number | undefined, jpSubId: number | undefined): Promise<SyncSummary | null>;
   /** Undo the auto-sync of a track. Reload its cues after. */
   resetSync(path: string, subId: number): Promise<void>;
   getSettings(): Promise<SettingsView>;
@@ -328,6 +344,8 @@ const tauriBackend: Backend = {
   showInAnki: (noteIds) => invoke('show_in_anki', { noteIds }),
   addSubtitleFile: (path, file) => invoke('add_subtitle_file', { path, file }),
   syncSubtitles: (path, subId, refSubId) => invoke('sync_subtitles', { path, subId, refSubId }),
+  syncToAudio: (path, subId, audioId, enSubId) => invoke('sync_to_audio', { path, subId, audioId, enSubId }),
+  autoSyncToAudio: (path, subId, audioId, enSubId, jpSubId) => invoke('auto_sync_to_audio', { path, subId, audioId, enSubId, jpSubId }),
   resetSync: (path, subId) => invoke('reset_sync', { path, subId }),
   getSettings: () => invoke('get_settings'),
   saveSettings: (settings) => invoke('save_settings', { settings }),

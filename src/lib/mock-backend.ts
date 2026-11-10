@@ -4,7 +4,7 @@
  * already in Anki), notrans=1 (no English line), trsrc=deepl|ollama (translation source of drafts), mined=1,3 (cue ids already mined), adderr=1 (addCard fails),
  * deepl=1 (a DeepL key is stored), unsynced=1 (Japanese lines are 2.88 s late until synced), models=0 (Ollama not running). Calls are recorded in window.__mock.
  */
-import { setBackend, type Backend, type MineRequest, type Settings, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
+import { setBackend, type Backend, type MineRequest, type Settings, type SyncSummary, type Cue, type PreparedMedia, type RecentItem, type Track, type WordUnit } from './backend';
 import { mockParams } from './env';
 import { basename } from './format';
 import { mockLookup, mockWordAudio } from './mock-dict';
@@ -47,7 +47,17 @@ const baseJpCues: Cue[] = [
 /** Japanese lines as the "release" has them: 2.88 s late when unsynced=1 until syncSubtitles runs. */
 const UNSYNCED_MS = mockParams.has('unsynced') ? 2880 : 0;
 let lateMs = UNSYNCED_MS;
-let jpSubId = 1;
+// ?jpext=1: the Japanese track is the subtitle FILE next to the video (track 3), which auto-syncs to the audio.
+let jpSubId = mockParams.has('jpext') ? 3 : 1;
+const autoChecked = new Set<number>();
+/** The late Japanese lines land on the voices; the English already matched them (followChanged 0). */
+function mockAudioSync(): SyncSummary {
+  const was = lateMs;
+  lateMs = 0;
+  return was
+    ? { medianShiftMs: -was, minShiftMs: -was, maxShiftMs: -was, changed: 7, followChanged: 0 }
+    : { medianShiftMs: 0, minShiftMs: 0, maxShiftMs: 0, changed: 0, followChanged: 0 };
+}
 let trackList = [...tracks];
 const lateCues = (): Cue[] => {
   const cues = baseJpCues.map((c) => (c.kind === 'dialogue' ? { ...c, startMs: c.startMs + lateMs, endMs: c.endMs + lateMs } : c));
@@ -95,14 +105,15 @@ const mockLog: {
   deeplKeys: (string | null)[];
   subFiles: string[];
   syncs: { subId: number; refSubId: number }[];
+  audioSyncs: { subId?: number; audioId?: number; enSubId?: number; auto: boolean }[];
   resets: number[];
-} = { drafts: [], added: [], settingsSaved: [], deeplKeys: [], subFiles: [], syncs: [], resets: [] };
+} = { drafts: [], added: [], settingsSaved: [], deeplKeys: [], subFiles: [], syncs: [], audioSyncs: [], resets: [] };
 (window as unknown as { __mock: typeof mockLog }).__mock = mockLog;
 
 let hasDeeplKey = mockParams.get('deepl') === '1';
 let stored: Settings = {
   ankiDeck: 'Kotoba Mining', ankiTags: ['anime'], useDeepl: true, useOllama: true, ollamaModel: null,
-  enMode: 'blur', pauseOnHover: true, subScale: Number(mockParams.get('scale') ?? 1), offsetStepMs: 100,
+  enMode: 'blur', pauseOnHover: true, subScale: Number(mockParams.get('scale') ?? 1), offsetStepMs: 100, autoSyncAudio: mockParams.get('autosync') !== '0',
   accent: (mockParams.get('accent') as Settings['accent'] | null) ?? 'sakura',
 };
 
@@ -123,7 +134,7 @@ const backend: Backend = {
     return m;
   },
   async getCues(_path, subId) {
-    return subId === 1 || subId === 4 ? lateCues() : subId === 2 ? enCues : [];
+    return subId === 1 || subId === 3 || subId === 4 ? lateCues() : subId === 2 ? enCues : [];
   },
   async alignCues() {
     return Object.fromEntries(LINES.map((_l, i) => [i + 1, [i]]));
@@ -186,7 +197,20 @@ const backend: Backend = {
     await sleep(400);
     mockLog.syncs.push({ subId, refSubId });
     lateMs = 0;
-    return { medianShiftMs: -2880, minShiftMs: -2880, maxShiftMs: -2880, changed: 7 };
+    return { medianShiftMs: -2880, minShiftMs: -2880, maxShiftMs: -2880, changed: 7, followChanged: 0 };
+  },
+  async syncToAudio(_path, subId, audioId, enSubId) {
+    await sleep(600);
+    mockLog.audioSyncs.push({ subId, audioId, enSubId, auto: false });
+    return mockAudioSync();
+  },
+  async autoSyncToAudio(_path, subId, audioId, enSubId) {
+    const key = subId ?? enSubId ?? -1;
+    if (autoChecked.has(key)) return null;
+    autoChecked.add(key);
+    await sleep(600);
+    mockLog.audioSyncs.push({ subId, audioId, enSubId, auto: true });
+    return subId == null ? { medianShiftMs: 0, minShiftMs: 0, maxShiftMs: 0, changed: 0, followChanged: 0 } : mockAudioSync();
   },
   async resetSync(_path, subId) {
     mockLog.resets.push(subId);

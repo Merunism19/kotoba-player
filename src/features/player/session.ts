@@ -89,6 +89,7 @@ export async function openFile(path: string): Promise<void> {
     wake();
     await player.loadFile(path, { startSec: (media.resumeMs ?? 0) / 1000, signsAssPath: media.signsAssPath });
     await player.setPause(false);
+    void autoSyncToAudio(media);
   } catch (e) {
     if (token !== openToken) return;
     toast(errMsg(e));
@@ -362,17 +363,23 @@ export async function addSubtitleFile(file: string): Promise<void> {
     }
     const role = media.jpSubId !== before.jpSubId ? 'Japanese' : media.enSubId !== before.enSubId ? 'English' : '';
     toast(`Added ${role ? role + ' ' : ''}subtitles: ${basename(file)}`, 'ok');
+    if (role) void autoSyncToAudio(media);
   } catch (e) {
     toast(errMsg(e));
   }
 }
 
 /** "moved 2.88 s earlier", plus the spread when the track was shifted by different amounts in different places. */
-function describeSync(r: SyncSummary): string {
-  if (r.changed === 0 || Math.abs(r.medianShiftMs) < 5) return 'Already in sync';
+function describeSync(r: SyncSummary, to = ''): string {
+  const en = r.followChanged ? '; English lined up with it' : '';
+  if (r.changed === 0 || Math.abs(r.medianShiftMs) < 5) {
+    if (r.followChanged) return 'English lined up with the Japanese';
+    return to ? `Already in sync with the ${to}` : 'Already in sync';
+  }
   const s = (Math.abs(r.medianShiftMs) / 1000).toFixed(2);
-  let msg = `Synced: moved ${s} s ${r.medianShiftMs < 0 ? 'earlier' : 'later'}`;
+  let msg = `Synced${to ? ` to the ${to}` : ''}: moved ${s} s ${r.medianShiftMs < 0 ? 'earlier' : 'later'}`;
   if (r.minShiftMs !== r.maxShiftMs) msg += ` (in parts, from ${fmtOffset(r.minShiftMs)} to ${fmtOffset(r.maxShiftMs)})`;
+  msg += en;
   return msg;
 }
 
@@ -384,10 +391,8 @@ export async function syncToEnglish(): Promise<void> {
   set({ syncing: true });
   try {
     const summary = await backend.syncSubtitles(media.path, jp, media.enSubId);
-    await reloadCues(media);
-    // The signs file was rewritten with the new timing; mpv re-reads it (no-op without signs).
-    if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
-    toast(describeSync(summary), 'ok', summary.changed ? { label: 'Undo', run: () => void undoSync(media.path, jp) } : undefined);
+    // The signs file is rewritten with the new timing; afterSync has mpv re-read it.
+    await afterSync(media, [jp], summary, 'English track');
   } catch (e) {
     toast(`Could not sync: ${errMsg(e)}`);
   } finally {
@@ -395,11 +400,75 @@ export async function syncToEnglish(): Promise<void> {
   }
 }
 
-async function undoSync(path: string, jp: number): Promise<void> {
+/** mpv's id of the audio track being heard (the chosen one, else the default, else the first). */
+function audioTrackId(media: PreparedMedia): number | undefined {
+  const chosen = get().audioId;
+  if (typeof chosen === 'number') return chosen;
+  const audio = media.tracks.filter((t) => t.kind === 'audio');
+  return (audio.find((t) => t.isDefault) ?? audio[0])?.id;
+}
+
+/** After a sync: show the new timing (and mpv the moved signs), and say what happened, with Undo (of `undo`'s tracks). */
+async function afterSync(media: PreparedMedia, undo: number[], summary: SyncSummary, to: string): Promise<void> {
+  await reloadCues(media);
+  if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
+  const moved = summary.changed || summary.followChanged;
+  toast(describeSync(summary, to), 'ok', moved ? { label: 'Undo', run: () => void undoSync(media.path, undo) } : undefined);
+}
+
+/** The tracks a sync changed, for its Undo. */
+const changedTracks = (s: SyncSummary, jp: number | undefined, en: number | undefined): number[] =>
+  [s.changed ? jp : undefined, s.followChanged ? en : undefined].filter((x): x is number => x != null);
+
+/** Track picker: retime the Japanese subtitles to the voices in the audio being heard. */
+export async function syncToAudio(): Promise<void> {
+  const { media, syncing } = get();
+  if (!media || syncing || media.jpSubId == null) return;
+  const jp = media.jpSubId;
+  set({ syncing: true });
+  try {
+    const en = media.enSubId ?? undefined;
+    const summary = await backend.syncToAudio(media.path, jp, audioTrackId(media), en);
+    if (get().media?.path !== media.path) return;
+    await afterSync(media, changedTracks(summary, jp, en), summary, 'voices');
+  } catch (e) {
+    toast(`Could not sync: ${errMsg(e)}`);
+  } finally {
+    set({ syncing: false });
+  }
+}
+
+/**
+ * Subtitle FILES (next to the video, or dropped in) often come from another release and are off,
+ * so they are synced automatically, once per file (an Undo sticks): a Japanese file to the voices
+ * (the English then follows it), an English file to the Japanese track. Embedded tracks match
+ * their video and are left alone. Quiet when there was nothing to fix.
+ */
+async function autoSyncToAudio(media: PreparedMedia): Promise<void> {
+  const isFile = (id: number | null | undefined) => media.tracks.some((t) => t.kind === 'sub' && t.id === id && t.external);
+  const jp = media.jpSubId ?? undefined;
+  const en = media.enSubId ?? undefined;
+  const jpFile = isFile(jp);
+  if (get().syncing || jp == null || !(jpFile || isFile(en))) return;
+  if (get().settingsView?.settings.autoSyncAudio === false) return;
+  set({ syncing: true });
+  try {
+    const summary = await backend.autoSyncToAudio(media.path, jpFile ? jp : undefined, audioTrackId(media), en, jp);
+    const now = get().media;
+    if (!summary || !(summary.changed || summary.followChanged) || now?.path !== media.path || now.jpSubId !== media.jpSubId) return;
+    await afterSync(now, changedTracks(summary, jp, en), summary, 'voices');
+  } catch (e) {
+    console.warn('auto sync to audio failed', e); // e.g. no audio track: the manual buttons still work
+  } finally {
+    set({ syncing: false });
+  }
+}
+
+async function undoSync(path: string, tracks: number[]): Promise<void> {
   const media = get().media;
   if (!media || media.path !== path) return;
   try {
-    await backend.resetSync(path, jp);
+    for (const id of tracks) await backend.resetSync(path, id);
     await reloadCues(media);
     if (media.signsAssPath) await player.reloadSubtitles().catch(() => {});
     toast('Sync undone', 'info');

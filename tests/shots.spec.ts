@@ -508,7 +508,7 @@ test('behaviour: Esc and backdrop click close the preview', async ({ page }) => 
 
 // ---- Phase 4: settings, transcript, external subtitles, sync -------------------------------------
 
-type MockLog = { settingsSaved: any[]; deeplKeys: (string | null)[]; subFiles: string[]; syncs: any[]; resets: number[] };
+type MockLog = { settingsSaved: any[]; deeplKeys: (string | null)[]; subFiles: string[]; syncs: any[]; audioSyncs: { subId?: number; audioId?: number; enSubId?: number; auto: boolean }[]; resets: number[] };
 const mockLog = (page: Page) => page.evaluate(() => (window as any).__mock as MockLog);
 const openSettingsPanel = async (page: Page) => {
   await page.getByRole('button', { name: /^Settings/ }).first().click();
@@ -596,7 +596,7 @@ test('sync-toast', async ({ page }) => {
   await openPlayer(page, '&unsynced=1', 18.5);
   await page.getByRole('button', { name: /JP \+ EN/ }).click();
   await page.getByRole('button', { name: 'Sync to English' }).click();
-  await expect(page.locator('.toast', { hasText: 'Synced: moved 2.88 s earlier' })).toBeVisible();
+  await expect(page.locator('.toast', { hasText: 'Synced to the English track: moved 2.88 s earlier' })).toBeVisible();
   await expect(page.locator('.toast-action')).toHaveText('Undo');
   await page.waitForTimeout(350);
   await shot(page, 'sync-toast');
@@ -648,7 +648,7 @@ test('behaviour: T toggles the transcript and clicking a line seeks', async ({ p
 });
 
 test('behaviour: dropping a subtitle file adds it; sync can be undone', async ({ page }) => {
-  await openPlayer(page, '&unsynced=1');
+  await openPlayer(page, '&unsynced=1&autosync=0');
   await page.evaluate(() => (window as any).__kp.handleDrop(['C:/Subs/other-release.ja.srt']));
   await expect(page.locator('.toast', { hasText: 'Added Japanese subtitles: other-release.ja.srt' })).toBeVisible();
   expect((await mockLog(page)).subFiles).toEqual(['C:/Subs/other-release.ja.srt']);
@@ -659,4 +659,39 @@ test('behaviour: dropping a subtitle file adds it; sync can be undone', async ({
   await page.locator('.toast-action', { hasText: 'Undo' }).click();
   await expect(page.locator('.toast', { hasText: 'Sync undone' })).toBeVisible();
   expect((await mockLog(page)).resets).toEqual([4]);
+});
+
+test('sync-voices-toast: a subtitle file next to the video syncs to the voices on open, once', async ({ page }) => {
+  await openPlayer(page, '&unsynced=1&jpext=1', 18.5);
+  await expect(page.locator('.toast', { hasText: 'Synced to the voices: moved 2.88 s earlier' })).toBeVisible();
+  await expect(page.locator('.toast-action')).toHaveText('Undo');
+  expect((await mockLog(page)).audioSyncs).toEqual([{ subId: 3, audioId: 1, enSubId: 2, auto: true }]);
+  // The line now shown is the one spoken at 18.5 s (synced timing), not the late one.
+  await expect(page.locator('.p-jp').first()).toContainText('約束だよ');
+  await page.waitForTimeout(350);
+  await shot(page, 'sync-voices-toast');
+  await page.locator('.toast-action', { hasText: 'Undo' }).click();
+  await expect(page.locator('.toast', { hasText: 'Sync undone' })).toBeVisible();
+  expect((await mockLog(page)).resets).toEqual([3]);
+});
+
+test('behaviour: embedded subtitles are not auto-synced; the setting turns it off; Sync to voices by hand', async ({ page }) => {
+  await openPlayer(page, '&unsynced=1');
+  await page.waitForTimeout(900);
+  expect((await mockLog(page)).audioSyncs).toEqual([]);
+  await page.goto('/?mock=1&open=1&unsynced=1&jpext=1&autosync=0');
+  await expect(page.locator('.p-top')).toBeVisible();
+  await page.waitForTimeout(900);
+  expect((await mockLog(page)).audioSyncs).toEqual([]);
+  await page.getByRole('button', { name: /JP \+ EN/ }).click();
+  await page.getByRole('button', { name: 'Sync to voices' }).click();
+  await expect(page.locator('.toast', { hasText: 'Synced to the voices: moved 2.88 s earlier' })).toBeVisible();
+  expect((await mockLog(page)).audioSyncs).toEqual([{ subId: 3, audioId: 1, enSubId: 2, auto: false }]);
+});
+
+test('behaviour: a dropped Japanese subtitle file syncs to the voices', async ({ page }) => {
+  await openPlayer(page, '&unsynced=1');
+  await page.evaluate(() => (window as any).__kp.handleDrop(['C:/Subs/other-release.ja.srt']));
+  await expect(page.locator('.toast', { hasText: 'Synced to the voices' })).toBeVisible();
+  expect((await mockLog(page)).audioSyncs).toEqual([{ subId: 4, audioId: 1, enSubId: 2, auto: true }]);
 });

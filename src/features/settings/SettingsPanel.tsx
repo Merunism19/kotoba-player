@@ -181,6 +181,9 @@ function SubtitlesSection({ s }: { s: Settings }) {
         />
         <div className="s-preview" lang="ja" style={{ fontSize: `${18 * s.subScale}px` }}>もう諦めないって決めたんだ。</div>
       </div>
+      <Row label="Sync subtitle files to the voices" hint="Once per file, when it sits next to the video or is dropped in">
+        <Switch label="Sync subtitle files to the voices" on={s.autoSyncAudio} onChange={(v) => updateSettings({ autoSyncAudio: v })} />
+      </Row>
       <Row label="Pause while hovering a line" hint="So you can read and click words">
         <Switch label="Pause on hover" on={s.pauseOnHover} onChange={(v) => updateSettings({ pauseOnHover: v })} />
       </Row>
